@@ -1,0 +1,271 @@
+// A sample message of Code Radio's websocket api
+// Api url:
+// wss://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio
+
+{
+    "station": {
+        "id": 2,
+        "name": "freeCodeCamp.org Code Radio",
+        "shortcode": "coderadio",
+        "description": "",
+        "frontend": "icecast",
+        "backend": "liquidsoap",
+        "listen_url": "https://coderadio-admin.freecodecamp.org/radio/8010/radio.mp3",
+        "url": "https://coderadio.freecodecamp.org",
+        "public_player_url": "https://coderadio-admin.freecodecamp.org/public/coderadio",
+        "playlist_pls_url": "https://coderadio-admin.freecodecamp.org/public/coderadio/playlist.pls",
+        "playlist_m3u_url": "https://coderadio-admin.freecodecamp.org/public/coderadio/playlist.m3u",
+        "is_public": true,
+        "mounts": [
+            {
+                "path": "/radio.mp3",
+                "is_default": true,
+                "id": 2,
+                "name": "128kbps MP3",
+                "url": "https://coderadio-admin.freecodecamp.org/radio/8010/radio.mp3",
+                "bitrate": 128,
+                "format": "mp3",
+                "listeners": {
+                    "total": 9,
+                    "unique": 9,
+                    "current": 9
+                }
+            },
+            {
+                "path": "/low.mp3",
+                "is_default": false,
+                "id": 3,
+                "name": "64kbps MP3",
+                "url": "https://coderadio-admin.freecodecamp.org/radio/8010/low.mp3",
+                "bitrate": 64,
+                "format": "mp3",
+                "listeners": {
+                    "total": 3,
+                    "unique": 3,
+                    "current": 3
+                }
+            }
+        ],
+        "remotes": [
+            {
+                "id": 38011,
+                "name": "128kbps MP3 (New York)",
+                "url": "https://coderadio-relay-nyc.freecodecamp.org/radio/8010/radio.mp3",
+                "bitrate": 128,
+                "format": "mp3",
+                "listeners": {
+                    "total": 16,
+                    "unique": 16,
+                    "current": 16
+                }
+            },
+            {
+                "id": 38012,
+                "name": "64kbps MP3 (New York)",
+                "url": "https://coderadio-relay-nyc.freecodecamp.org/radio/8010/low.mp3",
+                "bitrate": 64,
+                "format": "mp3",
+                "listeners": {
+                    "total": 7,
+                    "unique": 7,
+                    "current": 7
+                }
+            },
+            {
+                "id": 38019,
+                "name": "128kbps MP3 (Frankfurt)",
+                "url": "https://coderadio-relay-ffm.freecodecamp.org/radio/8010/radio.mp3",
+                "bitrate": 128,
+                "format": "mp3",
+                "listeners": {
+                    "total": 14,
+                    "unique": 14,
+                    "current": 14
+                }
+            },
+            {
+                "id": 38020,
+                "name": "64kbps MP3 (Frankfurt)",
+                "url": "https://coderadio-relay-ffm.freecodecamp.org/radio/8010/low.mp3",
+                "bitrate": 64,
+                "format": "mp3",
+                "listeners": {
+                    "total": 4,
+                    "unique": 4,
+                    "current": 4
+                }
+            },
+            {
+                "id": 38053,
+                "name": "128kbps MP3 (Bangalore)",
+                "url": "https://coderadio-relay-blr.freecodecamp.org/radio/8010/radio.mp3",
+                "bitrate": 128,
+                "format": "mp3",
+                "listeners": {
+                    "total": 10,
+                    "unique": 10,
+                    "current": 10
+                }
+            },
+            {
+                "id": 38054,
+                "name": "64kbps MP3 (Bangalore)",
+                "url": "https://coderadio-relay-blr.freecodecamp.org/radio/8010/low.mp3",
+                "bitrate": 64,
+                "format": "mp3",
+                "listeners": {
+                    "total": 6,
+                    "unique": 6,
+                    "current": 6
+                }
+            }
+        ]
+    },
+    "listeners": {
+        "total": 69,
+        "unique": 69,
+        "current": 69
+    },
+    "live": {
+        "is_live": false,
+        "streamer_name": "",
+        "broadcast_start": null
+    },
+    "now_playing": {
+        "elapsed": 115,
+        "remaining": 115,
+        "sh_id": 507585,
+        "played_at": 1649916162,
+        "duration": 230,
+        "playlist": "default",
+        "streamer": "",
+        "is_request": false,
+        "song": {
+            "id": "5dae5b1c52cebcb789ea9f9d0e9f16d0",
+            "text": "Vanilla - The Love",
+            "artist": "Vanilla",
+            "title": "The Love",
+            "album": "Moonlight",
+            "genre": "",
+            "lyrics": "",
+            "art": "https://coderadio-admin.freecodecamp.org/api/station/2/art/817a36a21c041d159c1b362e-1586028052.jpg",
+            "custom_fields": []
+        }
+    },
+    "playing_next": {
+        "cued_at": 1649916335,
+        "duration": 192,
+        "playlist": "default",
+        "is_request": false,
+        "song": {
+            "id": "c1925e38936d421f900056d79c1c1b2c",
+            "text": "Nefarious! - Just For Love",
+            "artist": "Nefarious!",
+            "title": "Just For Love",
+            "album": "For The Night Time",
+            "genre": "",
+            "lyrics": "",
+            "art": "https://coderadio-admin.freecodecamp.org/api/station/2/art/ef9fd452d69eefa405fe15a0-1586028052.jpg",
+            "custom_fields": []
+        }
+    },
+    "song_history": [
+        {
+            "sh_id": 507584,
+            "played_at": 1649916066,
+            "duration": 99,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "390b58d78efb085b53eefb3e0e35f5f4",
+                "text": "SwuM & Jinsang - lull",
+                "artist": "SwuM & Jinsang",
+                "title": "lull",
+                "album": "Blossoms",
+                "genre": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin.freecodecamp.org/api/station/2/art/e21e6eeb72765f3facfbdec4-1586028052.jpg",
+                "custom_fields": []
+            }
+        },
+        {
+            "sh_id": 507583,
+            "played_at": 1649915857,
+            "duration": 211,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "3fa2706528c852ec2b694b4e5113bae2",
+                "text": "L'Indécis - Staying There",
+                "artist": "L'Indécis",
+                "title": "Staying There",
+                "album": "Plethoria",
+                "genre": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin.freecodecamp.org/api/station/2/art/2cbe1be6b8e230d859dda7f4-1586028052.jpg",
+                "custom_fields": []
+            }
+        },
+        {
+            "sh_id": 507582,
+            "played_at": 1649915791,
+            "duration": 70,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "93fa0c0265052f914599e383eca0519f",
+                "text": "Kenichiro Nishihara - Mind Tourism",
+                "artist": "Kenichiro Nishihara",
+                "title": "Mind Tourism",
+                "album": "Life",
+                "genre": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin.freecodecamp.org/static/img/generic_song.jpg",
+                "custom_fields": []
+            }
+        },
+        {
+            "sh_id": 507581,
+            "played_at": 1649915644,
+            "duration": 150,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "9a8e8e8879accc32b8e44183734f60bd",
+                "text": "invention_ - ebb//flo",
+                "artist": "invention_",
+                "title": "ebb//flo",
+                "album": "Chillhop Essentials - Fall 2018",
+                "genre": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin.freecodecamp.org/api/station/2/art/56884d9c5d573bed40837b55-1586028052.jpg",
+                "custom_fields": []
+            }
+        },
+        {
+            "sh_id": 507580,
+            "played_at": 1649915521,
+            "duration": 126,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "b9dbc9f6e2da2f20d1b56ff152b8c0f1",
+                "text": "tkdwn. - state of mind",
+                "artist": "tkdwn.",
+                "title": "state of mind",
+                "album": "you can (get thru)",
+                "genre": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin.freecodecamp.org/api/station/2/art/afc2ebe5d6343ed212548495-1586028052.jpg",
+                "custom_fields": []
+            }
+        }
+    ],
+    "is_online": true,
+    "cache": "event"
+}
