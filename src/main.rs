@@ -1,22 +1,32 @@
 mod model;
 mod mp3_stream_decoder;
 mod player;
-mod stdout_flusher;
+mod terminal;
+mod utils;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use futures_util::StreamExt;
+use indicatif::{ProgressBar, ProgressStyle};
 use model::{CodeRadioMessage, Remote};
+use once_cell::sync::Lazy;
 use player::Player;
 use prettytable::{cell, row, Table};
 use rodio::Source;
-use stdout_flusher::flush_stdout;
+use std::sync::Mutex;
+use terminal::writeline;
+use tokio::task::spawn_blocking;
 use tokio_tungstenite::connect_async;
+use utils::prettify_seconds_to_minutes_and_seconds;
 
 const WEBSOCKET_API_URL: &str =
     "wss://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
+const REST_API_URL: &str = "https://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
 
-/// A command line music client for https://coderadio.freecodecamp.org
+static PLAYER: Lazy<Mutex<Option<Player>>> = Lazy::new(|| Mutex::new(None));
+static PROGRESS_BAR: Lazy<Mutex<Option<ProgressBar>>> = Lazy::new(|| Mutex::new(None));
+
+/// A command line music radio client for https://coderadio.freecodecamp.org
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -28,59 +38,73 @@ struct Args {
     #[clap(short, long)]
     list_stations: bool,
 
-    /// Volume, between 0 and 10
-    #[clap(short, long, default_value_t = 10)]
+    /// Volume, between 0 and 9
+    #[clap(short, long, default_value_t = 9)]
     volume: u8,
+
+    /// Do not display logo
+    #[clap(short, long)]
+    no_logo: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    ctrlc::set_handler(|| {
-        println!("\n\nGoodbye!");
-        std::process::exit(0);
-    })?;
-
     let args = Args::parse();
 
     if args.list_stations {
         print_stations().await?;
     } else {
-        if args.volume > 10 {
-            return Err(anyhow!("Volume must be between 0 and 10"));
+        if args.volume > 9 {
+            return Err(anyhow!("Volume must be between 0 and 9"));
         }
-        start_playing(args.station, args.volume).await?;
+
+        spawn_blocking(handle_keyboard_events);
+        start_playing(args).await?;
     }
+
     Ok(())
 }
 
-async fn start_playing(station_id: Option<i64>, volume: u8) -> Result<()> {
-    println!(
-        r"
+async fn start_playing(args: Args) -> Result<()> {
+    let logo = "
  ██████╗ ██████╗ ██████╗ ███████╗    ██████╗  █████╗ ██████╗ ██╗ ██████╗ 
 ██╔════╝██╔═══██╗██╔══██╗██╔════╝    ██╔══██╗██╔══██╗██╔══██╗██║██╔═══██╗
 ██║     ██║   ██║██║  ██║█████╗      ██████╔╝███████║██║  ██║██║██║   ██║
 ██║     ██║   ██║██║  ██║██╔══╝      ██╔══██╗██╔══██║██║  ██║██║██║   ██║
 ╚██████╗╚██████╔╝██████╔╝███████╗    ██║  ██║██║  ██║██████╔╝██║╚██████╔╝
- ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝ ╚═════╝ 
+ ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝ ╚═════╝ ";
 
-Welcome to Code Radio CLI!
-This is a command line music client for https://coderadio.freecodecamp.org
-"
+    let description = format!(
+        "Code Radio CLI v{}
+A command line music radio client for https://coderadio.freecodecamp.org
+Press 0-9 to adjust volume. Press Ctrl+C to exit.",
+        env!("CARGO_PKG_VERSION")
     );
 
-    let mut player = Player::new()?;
+    if !args.no_logo {
+        writeline!("{}", logo);
+        writeline!();
+    }
+    writeline!("{}", description);
+    writeline!();
+
+    let mut player = Player::try_new()?;
+    player.set_volume(args.volume);
+    PLAYER.lock().unwrap().replace(player);
+
     let mut listen_url = Option::None;
     let mut last_song_id = String::new();
 
-    println!("Loading... ");
+    writeline!("Loading... ");
 
     let (mut ws_stream, _) = connect_async(WEBSOCKET_API_URL).await?;
 
     while let Some(message) = parse_websocket_message(ws_stream.next().await).await? {
-        let stations = get_stations(&message);
-
         if listen_url.is_none() {
-            let listen_url_value = match station_id {
+            // Start playing
+            let stations = get_stations(&message);
+
+            let listen_url_value = match args.station {
                 Some(station_id) => {
                     match stations.iter().find(|station| station.id == station_id) {
                         Some(station) => station.url.clone(),
@@ -88,7 +112,7 @@ This is a command line music client for https://coderadio.freecodecamp.org
                             // Bug: This doens't return on Windows
                             // return Err(anyhow!("Station with ID \"{}\" not found", station_id));
 
-                            println!("Error: Station with ID \"{}\" not found", station_id);
+                            writeline!("Error: Station with ID \"{}\" not found", station_id);
                             std::process::exit(1);
                         }
                     }
@@ -100,43 +124,72 @@ This is a command line music client for https://coderadio.freecodecamp.org
                 .iter()
                 .find(|station| station.url == listen_url_value)
             {
-                print!("Station:    {}", station.name);
+                writeline!("Station:    {}", station.name);
             }
 
-            player.play(&listen_url_value, volume);
+            if let Some(player) = &*PLAYER.lock().unwrap() {
+                player.play(&listen_url_value);
+            }
+
             listen_url = Some(listen_url_value);
         }
 
+        // Display song info
         let song = message.now_playing.song;
-        if song.id != last_song_id {
-            last_song_id = song.id.clone();
-
-            println!();
-            println!();
-            println!("Song:       {}", song.title);
-            println!("Artist:     {}", song.artist);
-            println!("Album:      {}", song.album);
-        }
-
-        let prettify_seconds = |seconds: i64| format!("{:02}:{:02}", seconds / 60, seconds % 60);
-
         let duration = message.now_playing.duration;
         let elapsed = message.now_playing.elapsed;
-        let pretty_duration = prettify_seconds(duration);
-        let pretty_elapsed = prettify_seconds(elapsed);
-
-        if duration > 0 {
-            let progress = elapsed as f32 / duration as f32;
-            print!(
-                "\rProgress:   {} / {} - {:.2}%",
-                pretty_elapsed,
-                pretty_duration,
-                progress * 100.0
-            );
+        let pretty_duration = prettify_seconds_to_minutes_and_seconds(duration);
+        let pretty_elapsed = prettify_seconds_to_minutes_and_seconds(elapsed);
+        let progress_message = if duration > 0 {
+            format!("{} / {}", pretty_elapsed, pretty_duration)
         } else {
-            print!("\rProgress:   {}", pretty_elapsed);
+            pretty_elapsed
+        };
+
+        let mut progress_bar_guard = PROGRESS_BAR.lock().unwrap();
+
+        if song.id != last_song_id {
+            if let Some(progress_bar) = &*progress_bar_guard {
+                progress_bar.finish_and_clear();
+            }
+
+            last_song_id = song.id.clone();
+
+            writeline!();
+            writeline!("Song:       {}", song.title);
+            writeline!("Artist:     {}", song.artist);
+            writeline!("Album:      {}", song.album);
+
+            let progress_bar = if duration > 0 {
+                ProgressBar::new(duration as u64)
+                    .with_position(elapsed as u64)
+                    .with_message(progress_message)
+                    .with_style(
+                        ProgressStyle::default_bar()
+                            .template("Volume {prefix}/9  {wide_bar} {msg}"),
+                    )
+            } else {
+                ProgressBar::new(0)
+                    .with_message(progress_message)
+                    .with_style(ProgressStyle::default_bar().template("Volume {prefix}/9  {msg}"))
+            };
+
+            let volume_string = if let Some(player) = &*PLAYER.lock().unwrap() {
+                player.volume().to_string()
+            } else {
+                "~".to_string()
+            };
+
+            progress_bar.set_prefix(volume_string);
+            progress_bar.tick();
+
+            *progress_bar_guard = Some(progress_bar);
+        } else {
+            if let Some(progress_bar) = &*progress_bar_guard {
+                progress_bar.set_position(elapsed as u64);
+                progress_bar.set_message(progress_message);
+            }
         }
-        flush_stdout();
     }
 
     Ok(())
@@ -160,15 +213,10 @@ async fn print_stations() -> Result<()> {
 }
 
 async fn get_stations_from_web_api() -> Result<Vec<Remote>> {
-    let (mut ws_stream, _) = connect_async(WEBSOCKET_API_URL).await?;
-
-    if let Some(message) = parse_websocket_message(ws_stream.next().await).await? {
-        let mut stations = get_stations(&message);
-        stations.sort_by_key(|s| s.id);
-        return Ok(stations);
-    } else {
-        return Err(anyhow!("Cannot connect to Code Radio API"));
-    }
+    let message: CodeRadioMessage = reqwest::get(REST_API_URL).await?.json().await?;
+    let mut stations = get_stations(&message);
+    stations.sort_by_key(|s| s.id);
+    return Ok(stations);
 }
 
 fn get_stations(message: &CodeRadioMessage) -> Vec<Remote> {
@@ -192,5 +240,24 @@ async fn parse_websocket_message(
         Ok(Some(message))
     } else {
         Ok(None)
+    }
+}
+
+fn handle_keyboard_events() -> ! {
+    loop {
+        if let Some(n) = terminal::read_char().ok().and_then(|c| c.to_digit(10)) {
+            if n <= 9 {
+                if let Some(player) = PLAYER.lock().unwrap().as_mut() {
+                    let volume = n as u8;
+                    if player.volume() != volume {
+                        player.set_volume(volume);
+                        if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_mut() {
+                            progress_bar.set_prefix(volume.to_string());
+                            progress_bar.tick();
+                        };
+                    }
+                }
+            }
+        }
     }
 }

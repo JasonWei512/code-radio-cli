@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use anyhow::{Context, Result};
 use rodio::{OutputStream, Sink};
 use std::sync::mpsc::{self, Sender};
@@ -9,8 +7,8 @@ use crate::mp3_stream_decoder::Mp3StreamDecoder;
 
 pub struct Player {
     sender: Sender<PlayerMessage>,
-    join_handle: JoinHandle<()>,
-    volume: u8, // Between 0 and 10
+    _playing_handle: JoinHandle<()>,
+    volume: u8, // Between 0 and 9
 }
 
 enum PlayerMessage {
@@ -19,11 +17,11 @@ enum PlayerMessage {
 }
 
 impl Player {
-    pub fn new() -> Result<Player> {
+    pub fn try_new() -> Result<Player> {
         OutputStream::try_default().context("Audio device initialization failed")?;
 
         let (sender, receiver) = mpsc::channel();
-        let join_handle = spawn_blocking(move || {
+        let _playing_handle = spawn_blocking(move || {
             let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
             let (mut current_listen_url, mut current_volume) = loop {
@@ -37,7 +35,7 @@ impl Player {
                 let source = Mp3StreamDecoder::new(response).unwrap();
                 let sink = Sink::try_new(&stream_handle).unwrap();
                 sink.append(source);
-                sink.set_volume(Player::map_volume_to_magnitude(current_volume));
+                sink.set_volume(Player::map_volume(current_volume));
 
                 while let Ok(message) = receiver.recv() {
                     match message {
@@ -48,7 +46,7 @@ impl Player {
                         }
                         PlayerMessage::Volume { volume } => {
                             current_volume = volume;
-                            sink.set_volume(Player::map_volume_to_magnitude(current_volume));
+                            sink.set_volume(Player::map_volume(current_volume));
                         }
                     }
                 }
@@ -57,14 +55,12 @@ impl Player {
 
         Ok(Player {
             sender,
-            join_handle,
-            volume: 10,
+            _playing_handle,
+            volume: 9,
         })
     }
 
-    pub fn play(&mut self, listen_url: &str, volume: u8) {
-        self.volume = Self::cap_volume(volume);
-
+    pub fn play(&self, listen_url: &str) {
         self.sender
             .send(PlayerMessage::Play {
                 listen_url: listen_url.to_owned(),
@@ -87,17 +83,13 @@ impl Player {
             .unwrap();
     }
 
-    /// Cap the volume to a value between 0 and 10
+    /// Cap the volume to a value between 0 and 9
     fn cap_volume(volume: u8) -> u8 {
-        volume.min(10)
+        volume.min(9)
     }
 
-    /// Maps a volume between 0 and 10 to a magnitude between 0 and 1.
-    fn map_volume_to_magnitude(volume: u8) -> f32 {
-        if volume == 0 {
-            0.0
-        } else {
-            0.8_f32.powi((10 - volume) as i32)
-        }
+    /// Maps a volume between 0 and 9 to a magnitude between 0 and 1.
+    fn map_volume(volume: u8) -> f32 {
+        volume as f32 / 9_f32
     }
 }
