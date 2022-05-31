@@ -1,7 +1,7 @@
-// A sample message of Code Radio's websocket api
+// A sample message of Code Radio's web api
 // Api url:
 // wss://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio
-
+// https://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio
 {
     "station": {
         "id": 2,

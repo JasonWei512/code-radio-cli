@@ -47,8 +47,14 @@ struct Args {
     no_logo: bool,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    let runtime = tokio::runtime::Runtime::new()?;
+    let result = runtime.block_on(start());
+    runtime.shutdown_background(); // Shutdown without waiting for spawned blocking tasks
+    result
+}
+
+async fn start() -> Result<()> {
     let args = Args::parse();
 
     if args.list_stations {
@@ -57,8 +63,6 @@ async fn main() -> Result<()> {
         if args.volume > 9 {
             return Err(anyhow!("Volume must be between 0 and 9"));
         }
-
-        spawn_blocking(handle_keyboard_events);
         start_playing(args).await?;
     }
 
@@ -109,11 +113,7 @@ Press 0-9 to adjust volume. Press Ctrl+C to exit.",
                     match stations.iter().find(|station| station.id == station_id) {
                         Some(station) => station.url.clone(),
                         None => {
-                            // Bug: This doens't return on Windows
-                            // return Err(anyhow!("Station with ID \"{}\" not found", station_id));
-
-                            writeline!("Error: Station with ID \"{}\" not found", station_id);
-                            std::process::exit(1);
+                            return Err(anyhow!("Station with ID \"{}\" not found", station_id));
                         }
                     }
                 }
@@ -132,6 +132,8 @@ Press 0-9 to adjust volume. Press Ctrl+C to exit.",
             }
 
             listen_url = Some(listen_url_value);
+
+            spawn_blocking(handle_keyboard_events);
         }
 
         // Display song info
