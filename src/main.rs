@@ -13,9 +13,8 @@ use once_cell::sync::Lazy;
 use player::Player;
 use prettytable::{cell, row, Table};
 use rodio::Source;
-use std::sync::Mutex;
+use std::{sync::Mutex, thread};
 use terminal::writeline;
-use tokio::task::spawn_blocking;
 use tokio_tungstenite::connect_async;
 use utils::prettify_seconds_to_minutes_and_seconds;
 
@@ -47,14 +46,8 @@ struct Args {
     no_logo: bool,
 }
 
-fn main() -> Result<()> {
-    let runtime = tokio::runtime::Runtime::new()?;
-    let result = runtime.block_on(start());
-    runtime.shutdown_background(); // Shutdown without waiting for spawned blocking tasks
-    result
-}
-
-async fn start() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
 
     if args.list_stations {
@@ -133,7 +126,7 @@ Press 0-9 to adjust volume. Press Ctrl+C to exit.",
 
             listen_url = Some(listen_url_value);
 
-            spawn_blocking(handle_keyboard_events);
+            thread::spawn(handle_keyboard_events);
         }
 
         // Display song info

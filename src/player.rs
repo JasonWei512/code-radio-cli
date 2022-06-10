@@ -1,13 +1,14 @@
 use anyhow::{Context, Result};
 use rodio::{OutputStream, Sink};
-use std::sync::mpsc::{self, Sender};
-use tokio::task::{spawn_blocking, JoinHandle};
+use std::{
+    sync::mpsc::{self, Sender},
+    thread,
+};
 
 use crate::mp3_stream_decoder::Mp3StreamDecoder;
 
 pub struct Player {
     sender: Sender<PlayerMessage>,
-    _playing_handle: JoinHandle<()>,
     volume: u8, // Between 0 and 9
 }
 
@@ -21,7 +22,7 @@ impl Player {
         OutputStream::try_default().context("Audio device initialization failed")?;
 
         let (sender, receiver) = mpsc::channel();
-        let _playing_handle = spawn_blocking(move || {
+        thread::spawn(move || {
             let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
             let (mut current_listen_url, mut current_volume) = loop {
@@ -53,11 +54,7 @@ impl Player {
             }
         });
 
-        Ok(Player {
-            sender,
-            _playing_handle,
-            volume: 9,
-        })
+        Ok(Player { sender, volume: 9 })
     }
 
     pub fn play(&self, listen_url: &str) {
