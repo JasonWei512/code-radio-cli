@@ -135,10 +135,11 @@ Press 0-9 to adjust volume. Press Ctrl+C to exit.",
         let elapsed = message.now_playing.elapsed;
         let pretty_duration = prettify_seconds_to_minutes_and_seconds(duration);
         let pretty_elapsed = prettify_seconds_to_minutes_and_seconds(elapsed);
+        let listeners_message = format!("Listeners: {}", message.listeners.current);
         let progress_message = if duration > 0 {
-            format!("{} / {}", pretty_elapsed, pretty_duration)
+            format!("{} / {} - {}", pretty_elapsed, pretty_duration, listeners_message)
         } else {
-            pretty_elapsed
+            format!("{} - {}", pretty_elapsed, listeners_message)
         };
 
         let mut progress_bar_guard = PROGRESS_BAR.lock().unwrap();
