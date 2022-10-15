@@ -1,3 +1,4 @@
+mod args;
 mod model;
 mod mp3_stream_decoder;
 mod player;
@@ -5,6 +6,7 @@ mod terminal;
 mod utils;
 
 use anyhow::{anyhow, Result};
+use args::Args;
 use clap::Parser;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -24,27 +26,6 @@ const REST_API_URL: &str = "https://coderadio-admin.freecodecamp.org/api/live/no
 
 static PLAYER: Lazy<Mutex<Option<Player>>> = Lazy::new(|| Mutex::new(None));
 static PROGRESS_BAR: Lazy<Mutex<Option<ProgressBar>>> = Lazy::new(|| Mutex::new(None));
-
-/// A command line music radio client for https://coderadio.freecodecamp.org
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct Args {
-    /// The ID of the station to play from
-    #[clap(short, long)]
-    station: Option<i64>,
-
-    /// List all stations
-    #[clap(short, long)]
-    list_stations: bool,
-
-    /// Volume, between 0 and 9
-    #[clap(short, long, default_value_t = 9)]
-    volume: u8,
-
-    /// Do not display logo
-    #[clap(short, long)]
-    no_logo: bool,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -74,6 +55,8 @@ async fn start_playing(args: Args) -> Result<()> {
     let description = format!(
         "Code Radio CLI v{}
 A command line music radio client for https://coderadio.freecodecamp.org
+GitHub: https://github.com/JasonWei512/code-radio-cli
+
 Press 0-9 to adjust volume. Press Ctrl+C to exit.",
         env!("CARGO_PKG_VERSION")
     );
