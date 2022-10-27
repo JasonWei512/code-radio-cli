@@ -4,6 +4,8 @@
 
 A command line music radio client for https://coderadio.freecodecamp.org
 
+![Screenshot](./.github/images/screenshot.jpg)
+
 ## Install
 
 Install [Rust](https://rustup.rs/), then run:
@@ -11,6 +13,8 @@ Install [Rust](https://rustup.rs/), then run:
 ```
 cargo install code-radio-cli
 ```
+
+... or go to [GitHub release page](https://github.com/JasonWei512/code-radio-cli/releases) to get prebuilt binary.
 
 ## Usage
 
