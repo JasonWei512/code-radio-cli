@@ -16,6 +16,15 @@ cargo install code-radio-cli
 
 ... or go to [GitHub release page](https://github.com/JasonWei512/code-radio-cli/releases) to get prebuilt binary.
 
+### ⚠ About building and running on Linux 🐧
+
+This program uses [rustaudio/cpal](https://github.com/rustaudio/cpal) lib to play audio, which requires ALSA development files on Linux.
+
+In order to build and run this program on Linux, you need to install：
+
+- `libasound2-dev` on Debian / Ubuntu
+- `alsa-lib-devel` on Fedora
+
 ## Usage
 
 ```
