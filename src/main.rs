@@ -17,8 +17,6 @@ use prettytable::{cell, row, Table};
 use rodio::Source;
 use std::{sync::Mutex, thread};
 use terminal::writeline;
-use tokio_tungstenite::connect_async;
-use utils::prettify_seconds_to_minutes_and_seconds;
 
 const WEBSOCKET_API_URL: &str =
     "wss://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
@@ -37,36 +35,19 @@ async fn main() -> Result<()> {
         if args.volume > 9 {
             return Err(anyhow!("Volume must be between 0 and 9"));
         }
-        start_playing(args).await?;
+
+        let result = start_playing(args).await;
+        if result.is_err() {
+            writeline!();
+        }
+        result?;
     }
 
     Ok(())
 }
 
 async fn start_playing(args: Args) -> Result<()> {
-    let logo = "
- ██████╗ ██████╗ ██████╗ ███████╗    ██████╗  █████╗ ██████╗ ██╗ ██████╗ 
-██╔════╝██╔═══██╗██╔══██╗██╔════╝    ██╔══██╗██╔══██╗██╔══██╗██║██╔═══██╗
-██║     ██║   ██║██║  ██║█████╗      ██████╔╝███████║██║  ██║██║██║   ██║
-██║     ██║   ██║██║  ██║██╔══╝      ██╔══██╗██╔══██║██║  ██║██║██║   ██║
-╚██████╗╚██████╔╝██████╔╝███████╗    ██║  ██║██║  ██║██████╔╝██║╚██████╔╝
- ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝ ╚═════╝ ";
-
-    let description = format!(
-        "Code Radio CLI v{}
-A command line music radio client for https://coderadio.freecodecamp.org
-GitHub: https://github.com/JasonWei512/code-radio-cli
-
-Press 0-9 to adjust volume. Press Ctrl+C to exit.",
-        env!("CARGO_PKG_VERSION")
-    );
-
-    if !args.no_logo {
-        writeline!("{}", logo);
-        writeline!();
-    }
-    writeline!("{}", description);
-    writeline!();
+    display_welcome_message(&args);
 
     let mut player = Player::try_new()?;
     player.set_volume(args.volume);
@@ -77,12 +58,12 @@ Press 0-9 to adjust volume. Press Ctrl+C to exit.",
 
     writeline!("Loading... ");
 
-    let (mut ws_stream, _) = connect_async(WEBSOCKET_API_URL).await?;
+    let (mut ws_stream, _) = tokio_tungstenite::connect_async(WEBSOCKET_API_URL).await?;
 
     while let Some(message) = parse_websocket_message(ws_stream.next().await).await? {
         if listen_url.is_none() {
             // Start playing
-            let stations = get_stations(&message);
+            let stations = get_stations_from_api_message(&message);
 
             let listen_url_value = match args.station {
                 Some(station_id) => {
@@ -114,15 +95,20 @@ Press 0-9 to adjust volume. Press Ctrl+C to exit.",
 
         // Display song info
         let song = message.now_playing.song;
-        let duration = message.now_playing.duration;
-        let elapsed = message.now_playing.elapsed;
-        let pretty_duration = prettify_seconds_to_minutes_and_seconds(duration);
-        let pretty_elapsed = prettify_seconds_to_minutes_and_seconds(elapsed);
+        let total_seconds = message.now_playing.duration;
+        let elapsed_seconds = message.now_playing.elapsed;
+        let humanized_total_duration =
+            utils::humanize_seconds_to_minutes_and_seconds(total_seconds);
+        let humanized_elapsed_duration =
+            utils::humanize_seconds_to_minutes_and_seconds(elapsed_seconds);
         let listeners_message = format!("Listeners: {}", message.listeners.current);
-        let progress_message = if duration > 0 {
-            format!("{} / {} - {}", pretty_elapsed, pretty_duration, listeners_message)
+        let progress_message = if total_seconds > 0 {
+            format!(
+                "{} / {} - {}",
+                humanized_elapsed_duration, humanized_total_duration, listeners_message
+            )
         } else {
-            format!("{} - {}", pretty_elapsed, listeners_message)
+            format!("{} - {}", humanized_elapsed_duration, listeners_message)
         };
 
         let mut progress_bar_guard = PROGRESS_BAR.lock().unwrap();
@@ -139,9 +125,9 @@ Press 0-9 to adjust volume. Press Ctrl+C to exit.",
             writeline!("Artist:     {}", song.artist);
             writeline!("Album:      {}", song.album);
 
-            let progress_bar = if duration > 0 {
-                ProgressBar::new(duration as u64)
-                    .with_position(elapsed as u64)
+            let progress_bar = if total_seconds > 0 {
+                ProgressBar::new(total_seconds as u64)
+                    .with_position(elapsed_seconds as u64)
                     .with_message(progress_message)
                     .with_style(
                         ProgressStyle::default_bar()
@@ -165,7 +151,7 @@ Press 0-9 to adjust volume. Press Ctrl+C to exit.",
             *progress_bar_guard = Some(progress_bar);
         } else {
             if let Some(progress_bar) = &*progress_bar_guard {
-                progress_bar.set_position(elapsed as u64);
+                progress_bar.set_position(elapsed_seconds as u64);
                 progress_bar.set_message(progress_message);
             }
         }
@@ -174,31 +160,52 @@ Press 0-9 to adjust volume. Press Ctrl+C to exit.",
     Ok(())
 }
 
+fn display_welcome_message(args: &Args) {
+    let logo = "
+ ██████╗ ██████╗ ██████╗ ███████╗    ██████╗  █████╗ ██████╗ ██╗ ██████╗ 
+██╔════╝██╔═══██╗██╔══██╗██╔════╝    ██╔══██╗██╔══██╗██╔══██╗██║██╔═══██╗
+██║     ██║   ██║██║  ██║█████╗      ██████╔╝███████║██║  ██║██║██║   ██║
+██║     ██║   ██║██║  ██║██╔══╝      ██╔══██╗██╔══██║██║  ██║██║██║   ██║
+╚██████╗╚██████╔╝██████╔╝███████╗    ██║  ██║██║  ██║██████╔╝██║╚██████╔╝
+ ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝ ╚═════╝ ";
+    let description = format!(
+        "Code Radio CLI v{}
+A command line music radio client for https://coderadio.freecodecamp.org
+GitHub: https://github.com/JasonWei512/code-radio-cli
+
+Press 0-9 to adjust volume. Press Ctrl+C to exit.",
+        env!("CARGO_PKG_VERSION")
+    );
+    if !args.no_logo {
+        writeline!("{}", logo);
+        writeline!();
+    }
+    writeline!("{}", description);
+    writeline!();
+}
+
 async fn print_stations() -> Result<()> {
-    let stations = get_stations_from_web_api().await?;
+    let stations = get_stations_from_rest_api().await?;
 
     let mut table = Table::new();
     table.set_format(*prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-
     table.set_titles(row!["Station ID", "Name", "Bitrate (kbps)"]);
-
     for station in stations {
         table.add_row(row![station.id, station.name, station.bitrate]);
     }
-
     table.printstd();
 
     Ok(())
 }
 
-async fn get_stations_from_web_api() -> Result<Vec<Remote>> {
+async fn get_stations_from_rest_api() -> Result<Vec<Remote>> {
     let message: CodeRadioMessage = reqwest::get(REST_API_URL).await?.json().await?;
-    let mut stations = get_stations(&message);
+    let mut stations = get_stations_from_api_message(&message);
     stations.sort_by_key(|s| s.id);
-    return Ok(stations);
+    Ok(stations)
 }
 
-fn get_stations(message: &CodeRadioMessage) -> Vec<Remote> {
+fn get_stations_from_api_message(message: &CodeRadioMessage) -> Vec<Remote> {
     let mut stations: Vec<Remote> = Vec::new();
     for remote in &message.station.remotes {
         stations.push(remote.clone());

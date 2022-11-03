@@ -1,7 +1,6 @@
 use clap::Parser;
 
-const ABOUT: &str = 
-"A command line music radio client for https://coderadio.freecodecamp.org
+const ABOUT: &str = "A command line music radio client for https://coderadio.freecodecamp.org
 GitHub: https://github.com/JasonWei512/code-radio-cli";
 
 #[derive(Parser, Debug)]

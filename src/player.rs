@@ -36,7 +36,7 @@ impl Player {
                 let source = Mp3StreamDecoder::new(response).unwrap();
                 let sink = Sink::try_new(&stream_handle).unwrap();
                 sink.append(source);
-                sink.set_volume(Player::map_volume(current_volume));
+                sink.set_volume(Player::map_volume_to_rodio_volume(current_volume));
 
                 while let Ok(message) = receiver.recv() {
                     match message {
@@ -47,7 +47,7 @@ impl Player {
                         }
                         PlayerMessage::Volume { volume } => {
                             current_volume = volume;
-                            sink.set_volume(Player::map_volume(current_volume));
+                            sink.set_volume(Player::map_volume_to_rodio_volume(current_volume));
                         }
                     }
                 }
@@ -80,13 +80,13 @@ impl Player {
             .unwrap();
     }
 
-    /// Cap the volume to a value between 0 and 9
+    /// Cap volume to a value between 0 and 9
     fn cap_volume(volume: u8) -> u8 {
         volume.min(9)
     }
 
-    /// Maps a volume between 0 and 9 to a magnitude between 0 and 1.
-    fn map_volume(volume: u8) -> f32 {
+    /// Map a volume between 0 and 9 to between 0 and 1
+    fn map_volume_to_rodio_volume(volume: u8) -> f32 {
         volume as f32 / 9_f32
     }
 }
