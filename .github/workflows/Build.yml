@@ -1,0 +1,84 @@
+name: Build
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact-name: ubuntu-x86_64-gnu
+            prebuild-config: |
+              sudo apt-get update
+              sudo apt-get install -y libasound2-dev
+
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact-name: windows-x86_64-msvc
+            prebuild-config:
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact-name: macos-x86_64
+            prebuild-config: 
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set exe extension for Windows
+      run: echo "EXE=.exe" >> $env:GITHUB_ENV
+      if: startsWith(matrix.os, 'windows')
+
+    - name: Create draft release
+      id: create_draft_release
+      uses: ncipollo/release-action@v1
+      if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+      with:
+        draft: true
+        allowUpdates: true
+        generateReleaseNotes: true
+    
+    - name: Install `rust` toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        profile: minimal # minimal component installation (ie, no documentation)
+        target: ${{ matrix.target }}
+
+    - name: Prebuild config
+      run: ${{ matrix.prebuild-config }}
+
+    - name: Build
+      run: cargo build --release --target=${{ matrix.target }}
+      
+    - name: Run tests
+      run: cargo test --release
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact-name }}
+        path: target/${{ matrix.target }}/release/code-radio${{ env.EXE }}
+
+    - name: Get version from tag
+      id: extract_version
+      run: |
+        echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+      shell: bash
+      
+    - name: Upload artifact to release
+      uses: shogo82148/actions-upload-release-asset@v1
+      if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+      with:
+        upload_url: ${{ steps.create_draft_release.outputs.upload_url }}
+        asset_name: code-radio-${{ steps.extract_version.outputs.version }}-${{ matrix.artifact-name }}${{ env.EXE }}
+        asset_path: target/${{ matrix.target }}/release/code-radio${{ env.EXE }}
