@@ -95,20 +95,20 @@ async fn start_playing(args: Args) -> Result<()> {
 
         // Display song info
         let song = message.now_playing.song;
-        let total_seconds = message.now_playing.duration;
+        let total_seconds = message.now_playing.duration;   // Note: This may be 0
         let elapsed_seconds = message.now_playing.elapsed;
         let humanized_total_duration =
             utils::humanize_seconds_to_minutes_and_seconds(total_seconds);
         let humanized_elapsed_duration =
             utils::humanize_seconds_to_minutes_and_seconds(elapsed_seconds);
-        let listeners_message = format!("Listeners: {}", message.listeners.current);
+        let listeners_info = format!("Listeners: {}", message.listeners.current);
         let progress_message = if total_seconds > 0 {
             format!(
                 "{} / {} - {}",
-                humanized_elapsed_duration, humanized_total_duration, listeners_message
+                humanized_elapsed_duration, humanized_total_duration, listeners_info
             )
         } else {
-            format!("{} - {}", humanized_elapsed_duration, listeners_message)
+            format!("{} - {}", humanized_elapsed_duration, listeners_info)
         };
 
         let mut progress_bar_guard = PROGRESS_BAR.lock().unwrap();
@@ -125,19 +125,17 @@ async fn start_playing(args: Args) -> Result<()> {
             writeline!("Artist:     {}", song.artist);
             writeline!("Album:      {}", song.album);
 
-            let progress_bar = if total_seconds > 0 {
-                ProgressBar::new(total_seconds as u64)
-                    .with_position(elapsed_seconds as u64)
-                    .with_message(progress_message)
-                    .with_style(
-                        ProgressStyle::default_bar()
-                            .template("Volume {prefix}/9  {wide_bar} {msg}"),
-                    )
+            let progress_bar_len = if total_seconds > 0 {
+                total_seconds as u64
             } else {
-                ProgressBar::new(0)
-                    .with_message(progress_message)
-                    .with_style(ProgressStyle::default_bar().template("Volume {prefix}/9  {msg}"))
+                u64::MAX
             };
+            let progress_bar = ProgressBar::new(progress_bar_len)
+                .with_position(elapsed_seconds as u64)
+                .with_message(progress_message)
+                .with_style(
+                    ProgressStyle::default_bar().template("Volume {prefix}/9  {wide_bar} {msg}"),
+                );
 
             let volume_string = if let Some(player) = &*PLAYER.lock().unwrap() {
                 player.volume().to_string()
