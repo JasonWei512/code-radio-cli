@@ -49,9 +49,16 @@ async fn main() -> Result<()> {
 async fn start_playing(args: Args) -> Result<()> {
     display_welcome_message(&args);
 
-    let mut player = Player::try_new()?;
-    player.set_volume(args.volume);
-    PLAYER.lock().unwrap().replace(player);
+    match Player::try_new() {
+        Ok(mut player) => {
+            player.set_volume(args.volume);
+            PLAYER.lock().unwrap().replace(player);
+        },
+        Err(e) => {
+            writeline!("Error: {}", e);
+            writeline!();
+        }
+    }
 
     let mut listen_url = Option::None;
     let mut last_song_id = String::new();
@@ -140,7 +147,7 @@ async fn start_playing(args: Args) -> Result<()> {
             let volume_string = if let Some(player) = &*PLAYER.lock().unwrap() {
                 player.volume().to_string()
             } else {
-                "~".to_string()
+                "*".to_string()
             };
 
             progress_bar.set_prefix(volume_string);
