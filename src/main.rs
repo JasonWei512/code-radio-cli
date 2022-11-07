@@ -8,6 +8,7 @@ mod utils;
 use anyhow::{anyhow, Result};
 use args::Args;
 use clap::Parser;
+use colored::Colorize;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use model::{CodeRadioMessage, Remote};
@@ -26,7 +27,16 @@ static PLAYER: Lazy<Mutex<Option<Player>>> = Lazy::new(|| Mutex::new(None));
 static PROGRESS_BAR: Lazy<Mutex<Option<ProgressBar>>> = Lazy::new(|| Mutex::new(None));
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(e) = start().await {
+        terminal::print_error(e);
+        std::process::exit(1);
+    }
+}
+
+async fn start() -> Result<()> {
+    terminal::enable_color_on_windows();
+
     let args = Args::parse();
 
     if args.list_stations {
@@ -53,9 +63,9 @@ async fn start_playing(args: Args) -> Result<()> {
         Ok(mut player) => {
             player.set_volume(args.volume);
             PLAYER.lock().unwrap().replace(player);
-        },
+        }
         Err(e) => {
-            writeline!("Error: {}", e);
+            terminal::print_error(e);
             writeline!();
         }
     }
@@ -65,9 +75,9 @@ async fn start_playing(args: Args) -> Result<()> {
 
     writeline!("Loading... ");
 
-    let (mut ws_stream, _) = tokio_tungstenite::connect_async(WEBSOCKET_API_URL).await?;
+    let (mut websocket_stream, _) = tokio_tungstenite::connect_async(WEBSOCKET_API_URL).await?;
 
-    while let Some(message) = parse_websocket_message(ws_stream.next().await).await? {
+    while let Some(message) = parse_websocket_message(websocket_stream.next().await).await? {
         if listen_url.is_none() {
             // Start playing
             let stations = get_stations_from_api_message(&message);
@@ -88,7 +98,7 @@ async fn start_playing(args: Args) -> Result<()> {
                 .iter()
                 .find(|station| station.url == listen_url_value)
             {
-                writeline!("Station:    {}", station.name);
+                writeline!("{}    {}", "Station:".green(), station.name);
             }
 
             if let Some(player) = &*PLAYER.lock().unwrap() {
@@ -102,7 +112,7 @@ async fn start_playing(args: Args) -> Result<()> {
 
         // Display song info
         let song = message.now_playing.song;
-        let total_seconds = message.now_playing.duration;   // Note: This may be 0
+        let total_seconds = message.now_playing.duration; // Note: This may be 0
         let elapsed_seconds = message.now_playing.elapsed;
         let humanized_total_duration =
             utils::humanize_seconds_to_minutes_and_seconds(total_seconds);
@@ -128,9 +138,9 @@ async fn start_playing(args: Args) -> Result<()> {
             last_song_id = song.id.clone();
 
             writeline!();
-            writeline!("Song:       {}", song.title);
-            writeline!("Artist:     {}", song.artist);
-            writeline!("Album:      {}", song.album);
+            writeline!("{}       {}", "Song:".green(), song.title);
+            writeline!("{}     {}", "Artist:".green(), song.artist);
+            writeline!("{}      {}", "Album:".green(), song.album);
 
             let progress_bar_len = if total_seconds > 0 {
                 total_seconds as u64
@@ -140,17 +150,12 @@ async fn start_playing(args: Args) -> Result<()> {
             let progress_bar = ProgressBar::new(progress_bar_len)
                 .with_position(elapsed_seconds as u64)
                 .with_message(progress_message)
-                .with_style(
-                    ProgressStyle::default_bar().template("Volume {prefix}/9  {wide_bar} {msg}"),
-                );
+                .with_style(ProgressStyle::with_template(
+                    &(format!("{{prefix}}  {{wide_bar}} {{msg}}")),
+                )?);
 
-            let volume_string = if let Some(player) = &*PLAYER.lock().unwrap() {
-                player.volume().to_string()
-            } else {
-                "*".to_string()
-            };
-
-            progress_bar.set_prefix(volume_string);
+            let volume = PLAYER.lock().unwrap().as_ref().map(|p| p.volume());
+            progress_bar.set_prefix(get_progress_bar_prefix(volume));
             progress_bar.tick();
 
             *progress_bar_guard = Some(progress_bar);
@@ -173,14 +178,23 @@ fn display_welcome_message(args: &Args) {
 ██║     ██║   ██║██║  ██║██╔══╝      ██╔══██╗██╔══██║██║  ██║██║██║   ██║
 ╚██████╗╚██████╔╝██████╔╝███████╗    ██║  ██║██║  ██║██████╔╝██║╚██████╔╝
  ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝ ╚═════╝ ";
+
+    let app_name_and_version = format!("Code Radio CLI v{}", env!("CARGO_PKG_VERSION"));
+    let help_command = format!("{} --help", utils::get_current_executable_name());
+
     let description = format!(
-        "Code Radio CLI v{}
+        "{}
 A command line music radio client for https://coderadio.freecodecamp.org
 GitHub: https://github.com/JasonWei512/code-radio-cli
 
-Press 0-9 to adjust volume. Press Ctrl+C to exit.",
-        env!("CARGO_PKG_VERSION")
+{}
+Press 0-9 to adjust volume. Press Ctrl+C to exit.
+Run {} to get more help.",
+        app_name_and_version.yellow(),
+        "Usage:".yellow(),
+        help_command.cyan()
     );
+
     if !args.no_logo {
         writeline!("{}", logo);
         writeline!();
@@ -234,6 +248,14 @@ async fn parse_websocket_message(
     }
 }
 
+fn get_progress_bar_prefix(volume: Option<u8>) -> String {
+    let volume_char = match volume {
+        Some(v) => v.to_string(),
+        None => "*".to_string(),
+    };
+    format!("Volume {}/9", volume_char)
+}
+
 fn handle_keyboard_events() -> ! {
     loop {
         if let Some(n) = terminal::read_char().ok().and_then(|c| c.to_digit(10)) {
@@ -243,7 +265,7 @@ fn handle_keyboard_events() -> ! {
                     if player.volume() != volume {
                         player.set_volume(volume);
                         if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_mut() {
-                            progress_bar.set_prefix(volume.to_string());
+                            progress_bar.set_prefix(get_progress_bar_prefix(Some(volume)));
                             progress_bar.tick();
                         };
                     }
