@@ -16,7 +16,7 @@ use once_cell::sync::Lazy;
 use player::Player;
 use prettytable::{cell, row, Table};
 use rodio::Source;
-use std::{sync::Mutex, thread};
+use std::{sync::Mutex, thread, time::Duration};
 use terminal::writeline;
 
 const WEBSOCKET_API_URL: &str =
@@ -59,6 +59,11 @@ async fn start() -> Result<()> {
 async fn start_playing(args: Args) -> Result<()> {
     display_welcome_message(&args);
 
+    let loading_spinner = ProgressBar::new_spinner()
+        .with_style(ProgressStyle::with_template("{spinner} {msg}")?)
+        .with_message("Initializing audio device...");
+    loading_spinner.enable_steady_tick(Duration::from_millis(120));
+
     match Player::try_new() {
         Ok(mut player) => {
             player.set_volume(args.volume);
@@ -70,16 +75,18 @@ async fn start_playing(args: Args) -> Result<()> {
         }
     }
 
+    loading_spinner.set_message("Connecting...");
+
     let mut listen_url = Option::None;
     let mut last_song_id = String::new();
-
-    writeline!("Loading... ");
 
     let (mut websocket_stream, _) = tokio_tungstenite::connect_async(WEBSOCKET_API_URL).await?;
 
     while let Some(message) = parse_websocket_message(websocket_stream.next().await).await? {
         if listen_url.is_none() {
             // Start playing
+            loading_spinner.finish_and_clear();
+
             let stations = get_stations_from_api_message(&message);
 
             let listen_url_value = match args.station {
@@ -98,7 +105,7 @@ async fn start_playing(args: Args) -> Result<()> {
                 .iter()
                 .find(|station| station.url == listen_url_value)
             {
-                writeline!("{}    {}", "Station:".green(), station.name);
+                writeline!("{}    {}", "Station:".bright_green(), station.name);
             }
 
             if let Some(player) = &*PLAYER.lock().unwrap() {
@@ -138,9 +145,9 @@ async fn start_playing(args: Args) -> Result<()> {
             last_song_id = song.id.clone();
 
             writeline!();
-            writeline!("{}       {}", "Song:".green(), song.title);
-            writeline!("{}     {}", "Artist:".green(), song.artist);
-            writeline!("{}      {}", "Album:".green(), song.album);
+            writeline!("{}       {}", "Song:".bright_green(), song.title);
+            writeline!("{}     {}", "Artist:".bright_green(), song.artist);
+            writeline!("{}      {}", "Album:".bright_green(), song.album);
 
             let progress_bar_len = if total_seconds > 0 {
                 total_seconds as u64
@@ -187,12 +194,10 @@ fn display_welcome_message(args: &Args) {
 A command line music radio client for https://coderadio.freecodecamp.org
 GitHub: https://github.com/JasonWei512/code-radio-cli
 
-{}
 Press 0-9 to adjust volume. Press Ctrl+C to exit.
 Run {} to get more help.",
-        app_name_and_version.yellow(),
-        "Usage:".yellow(),
-        help_command.cyan()
+        app_name_and_version.bright_green(),
+        help_command.bright_yellow()
     );
 
     if !args.no_logo {

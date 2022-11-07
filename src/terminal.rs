@@ -14,8 +14,11 @@ pub fn read_char() -> std::io::Result<char> {
     TERM.read_char()
 }
 
-pub fn print_error<E>(error: E) where E: Display {
-    writeline!("{} {}", "Error:".red(), error);
+pub fn print_error<E>(error: E)
+where
+    E: Display,
+{
+    writeline!("{} {}", "Error:".bright_red(), error);
 }
 
 // This is a workaround for https://github.com/console-rs/console/issues/36
