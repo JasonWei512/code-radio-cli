@@ -14,10 +14,7 @@ pub fn read_char() -> std::io::Result<char> {
     TERM.read_char()
 }
 
-pub fn print_error<E>(error: E)
-where
-    E: Display,
-{
+pub fn print_error(error: impl Display) {
     writeline!("{} {}", "Error:".bright_red(), error);
 }
 

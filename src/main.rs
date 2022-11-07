@@ -3,6 +3,7 @@ mod model;
 mod mp3_stream_decoder;
 mod player;
 mod terminal;
+mod update_checker;
 mod utils;
 
 use anyhow::{anyhow, Result};
@@ -57,6 +58,8 @@ async fn start() -> Result<()> {
 }
 
 async fn start_playing(args: Args) -> Result<()> {
+    let mut update_checking_task_holder = Some(tokio::spawn(update_checker::get_new_release()));
+
     display_welcome_message(&args);
 
     let loading_spinner = ProgressBar::new_spinner()
@@ -100,6 +103,21 @@ async fn start_playing(args: Args) -> Result<()> {
                 }
                 None => message.station.listen_url,
             };
+
+            // Notify user if a new version is available
+            if let Some(update_checking_task) = update_checking_task_holder.take() {
+                if update_checking_task.is_finished() {
+                    if let Ok(Ok(Some(new_release))) = update_checking_task.await {
+                        writeline!(
+                            "{}",
+                            format!("New version available: {}", new_release.version)
+                                .bright_yellow()
+                        );
+                        writeline!("{}", new_release.url.bright_yellow());
+                        writeline!();
+                    }
+                }
+            }
 
             if let Some(station) = stations
                 .iter()
