@@ -1,20 +1,23 @@
 # Code Radio CLI
 
 [![Crate](https://img.shields.io/crates/v/code-radio-cli.svg)](https://crates.io/crates/code-radio-cli)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/JasonWei512/code-radio-cli)](https://github.com/JasonWei512/code-radio-cli/releases)
 
-A command line music radio client for https://coderadio.freecodecamp.org
+A command line music radio client for https://coderadio.freecodecamp.org, written in Rust.
 
 ![Screenshot](./.github/images/screenshot.jpg)
 
 ## Install
 
-Install [Rust](https://rustup.rs/), then run:
+- Download prebuilt binary from [GitHub release page](https://github.com/JasonWei512/code-radio-cli/releases).
 
-```
-cargo install code-radio-cli
-```
+- Or install with [Cargo](https://rustup.rs/):
+  
+  ```
+  cargo install code-radio-cli
+  ```
 
-... or go to [GitHub release page](https://github.com/JasonWei512/code-radio-cli/releases) to get prebuilt binary.
+  Then run `code-radio` in command line.
 
 ### ⚠ About building and running on Linux 🐧
 
