@@ -12,8 +12,9 @@ static LATEST_RELEASE_CACHE_FILE_PATH: Lazy<PathBuf> = Lazy::new(|| {
     pathbuf
 });
 
+// Use a cache file in temp dir to store latest release info and speed up the process of checking update
 pub async fn get_new_release() -> Result<Option<Release>> {
-    // Fetch latest release info from GitHub, and save it to cache file in background
+    // Asynchronously fetch latest release info from GitHub, and save it to cache file
     let get_new_release_from_github_task = tokio::spawn(get_new_release_from_github());
 
     if let Some(cached_latest_release) = try_read_latest_release_from_cache_file().await {
@@ -85,15 +86,13 @@ fn release_newer_than_current_package(release: &Release) -> bool {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Release {
-    pub version: String,
+    pub version: String, // Like "1.3.5"
     pub url: String,
 }
 
+// This is for deserializing GitHub's latest release api response
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct GithubRelease {
-    pub tag_name: String,
+    pub tag_name: String, // Like "v1.3.5"
     pub html_url: String,
-
-    pub draft: bool,
-    pub prerelease: bool,
 }

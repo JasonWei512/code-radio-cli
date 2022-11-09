@@ -32,13 +32,7 @@ async fn main() {
     let _clean_up = CleanUp {};
 
     if let Err(e) = start().await {
-        // If progress bar is on screen, write a newline before displaying error message to avoid messy output
-        if let Some(progress_bar) = &*PROGRESS_BAR.lock().unwrap() {
-            if !progress_bar.is_finished() {
-                progress_bar.finish();
-                writeline!();
-            }
-        }
+        writeline!();
         terminal::print_error(e);
     }
 }
@@ -302,7 +296,7 @@ fn handle_keyboard_events() -> ! {
 }
 
 /*
-A workaround for https://github.com/console-rs/console 
+A workaround for https://github.com/console-rs/console
 
 This program handles keyboard input (adjust volume) by spawning a thread and calling "console::Term::stdout().read_char()" in a loop.
 This is how "console::Term::stdout().read_char()" works on Unix-like OS:
