@@ -35,4 +35,7 @@ console = "0.15.0"
 colored = "2.0.0"
 version-compare = "0.1.0"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.137"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

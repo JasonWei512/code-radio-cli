@@ -14,7 +14,7 @@ static LATEST_RELEASE_CACHE_FILE_PATH: Lazy<PathBuf> = Lazy::new(|| {
 
 pub async fn get_new_release() -> Result<Option<Release>> {
     // Fetch latest release info from GitHub, and save it to cache file in background
-    let get_new_release_from_github_task = tokio::spawn(get_new_release_from_github()); 
+    let get_new_release_from_github_task = tokio::spawn(get_new_release_from_github());
 
     if let Some(cached_latest_release) = try_read_latest_release_from_cache_file().await {
         if release_newer_than_current_package(&cached_latest_release) {

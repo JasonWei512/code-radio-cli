@@ -236,6 +236,7 @@ dependencies = [
  "console",
  "futures-util",
  "indicatif",
+ "libc",
  "minimp3",
  "once_cell",
  "prettytable-rs",

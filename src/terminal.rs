@@ -6,7 +6,7 @@ use std::fmt::Display;
 pub static TERM: Lazy<Term> = Lazy::new(|| Term::stdout());
 
 pub fn enable_color_on_windows() {
-    #[cfg(target_os = "windows")]
+    #[cfg(windows)]
     colored::control::set_virtual_terminal(true).unwrap();
 }
 

@@ -29,9 +29,17 @@ static PROGRESS_BAR: Lazy<Mutex<Option<ProgressBar>>> = Lazy::new(|| Mutex::new(
 
 #[tokio::main]
 async fn main() {
+    let _clean_up = CleanUp {};
+
     if let Err(e) = start().await {
+        // If progress bar is on screen, write a newline before displaying error message to avoid messy output
+        if let Some(progress_bar) = &*PROGRESS_BAR.lock().unwrap() {
+            if !progress_bar.is_finished() {
+                progress_bar.finish();
+                writeline!();
+            }
+        }
         terminal::print_error(e);
-        std::process::exit(1);
     }
 }
 
@@ -46,12 +54,7 @@ async fn start() -> Result<()> {
         if args.volume > 9 {
             return Err(anyhow!("Volume must be between 0 and 9"));
         }
-
-        let result = start_playing(args).await;
-        if result.is_err() {
-            writeline!();
-        }
-        result?;
+        start_playing(args).await?;
     }
 
     Ok(())
@@ -242,8 +245,7 @@ async fn print_stations() -> Result<()> {
 
 async fn get_stations_from_rest_api() -> Result<Vec<Remote>> {
     let message: CodeRadioMessage = reqwest::get(REST_API_URL).await?.json().await?;
-    let mut stations = get_stations_from_api_message(&message);
-    stations.sort_by_key(|s| s.id);
+    let stations = get_stations_from_api_message(&message);
     Ok(stations)
 }
 
@@ -255,6 +257,7 @@ fn get_stations_from_api_message(message: &CodeRadioMessage) -> Vec<Remote> {
     for mount in &message.station.mounts {
         stations.push(mount.clone().into());
     }
+    stations.sort_by_key(|s| s.id);
     stations
 }
 
@@ -294,6 +297,37 @@ fn handle_keyboard_events() -> ! {
                     }
                 }
             }
+        }
+    }
+}
+
+/*
+A workaround for https://github.com/console-rs/console 
+
+This program handles keyboard input (adjust volume) by spawning a thread and calling "console::Term::stdout().read_char()" in a loop.
+This is how "console::Term::stdout().read_char()" works on Unix-like OS:
+1. Call the method
+2. Your terminal exits "canonical" mode and enters "raw" mode
+3. The method blocks until you press a key
+4. Terminal exits "raw" mode and returns to "canonical" mode
+5. The method returns the key you pressed
+
+The problem is, on Unix-like OS, if the program exits accidentally when "console::Term::stdout().read_char()" is blocking,
+the terminal will stay in "raw" mode and your terminal output will get messy.
+
+The workaround is to send ourself SIGINT (Ctrl+C) signal when exiting on Unix-like OS.
+
+Related issues:
+https://github.com/console-rs/console/issues/36
+https://github.com/console-rs/console/issues/136
+*/
+struct CleanUp {}
+
+impl Drop for CleanUp {
+    fn drop(&mut self) {
+        #[cfg(unix)]
+        unsafe {
+            libc::raise(libc::SIGINT);
         }
     }
 }
