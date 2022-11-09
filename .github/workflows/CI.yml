@@ -1,4 +1,4 @@
-name: Build
+name: CI
 
 on: [push, pull_request, workflow_dispatch]
 
@@ -8,8 +8,7 @@ env:
 jobs:
   create-draft-release:
     runs-on: ubuntu-latest
-
-    outputs:
+    outputs: 
       release_upload_url: ${{ steps.create-draft-release.outputs.upload_url }}
 
     steps:
@@ -21,9 +20,8 @@ jobs:
         draft: true
         generateReleaseNotes: true
 
-  build:
+  build-and-upload-artifact:
     needs: create-draft-release
-
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -89,3 +87,21 @@ jobs:
         upload_url: ${{ needs.create-draft-release.outputs.release_upload_url }}
         asset_name: code-radio-${{ steps.extract-version.outputs.version }}-${{ matrix.artifact-name }}${{ env.EXE }}
         asset_path: target/${{ matrix.target }}/release/code-radio${{ env.EXE }}
+
+  publish-package:
+    runs-on: windows-latest
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install `rust` toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        profile: minimal # minimal component installation (ie, no documentation)
+        target: ${{ matrix.target }}
+
+    - name: Publish to crates.io
+      run: cargo publish --token ${{ secrets.CARGO_TOKEN }}
