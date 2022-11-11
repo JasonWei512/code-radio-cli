@@ -29,7 +29,8 @@ static PROGRESS_BAR: Lazy<Mutex<Option<ProgressBar>>> = Lazy::new(|| Mutex::new(
 
 #[tokio::main]
 async fn main() {
-    let _clean_up = CleanUp {};
+    terminal::enable_color_on_windows();
+    let _terminal_clean_up_helper = terminal::create_clean_up_helper(); // See the comments in "terminal" module
 
     if let Err(e) = start().await {
         writeline!();
@@ -38,8 +39,6 @@ async fn main() {
 }
 
 async fn start() -> Result<()> {
-    terminal::enable_color_on_windows();
-
     let args = Args::parse();
 
     if args.list_stations {
@@ -123,7 +122,7 @@ async fn start_playing(args: Args) -> Result<()> {
                 writeline!("{}    {}", "Station:".bright_green(), station.name);
             }
 
-            if let Some(player) = &*PLAYER.lock().unwrap() {
+            if let Some(player) = PLAYER.lock().unwrap().as_ref() {
                 player.play(&listen_url_value);
             }
 
@@ -153,7 +152,7 @@ async fn start_playing(args: Args) -> Result<()> {
         let mut progress_bar_guard = PROGRESS_BAR.lock().unwrap();
 
         if song.id != last_song_id {
-            if let Some(progress_bar) = &*progress_bar_guard {
+            if let Some(progress_bar) = progress_bar_guard.as_ref() {
                 progress_bar.finish_and_clear();
             }
 
@@ -182,7 +181,7 @@ async fn start_playing(args: Args) -> Result<()> {
 
             *progress_bar_guard = Some(progress_bar);
         } else {
-            if let Some(progress_bar) = &*progress_bar_guard {
+            if let Some(progress_bar) = progress_bar_guard.as_ref() {
                 progress_bar.set_position(elapsed_seconds as u64);
                 progress_bar.set_message(progress_message);
             }
@@ -291,37 +290,6 @@ fn handle_keyboard_events() -> ! {
                     }
                 }
             }
-        }
-    }
-}
-
-/*
-A workaround for https://github.com/console-rs/console
-
-This program handles keyboard input (adjust volume) by spawning a thread and calling "console::Term::stdout().read_char()" in a loop.
-This is how "console::Term::stdout().read_char()" works on Unix-like OS:
-1. Call the method
-2. Your terminal exits "canonical" mode and enters "raw" mode
-3. The method blocks until you press a key
-4. Terminal exits "raw" mode and returns to "canonical" mode
-5. The method returns the key you pressed
-
-The problem is, on Unix-like OS, if the program exits accidentally when "console::Term::stdout().read_char()" is blocking,
-the terminal will stay in "raw" mode and your terminal output will get messy.
-
-The workaround is to send ourself SIGINT (Ctrl+C) signal when exiting on Unix-like OS.
-
-Related issues:
-https://github.com/console-rs/console/issues/36
-https://github.com/console-rs/console/issues/136
-*/
-struct CleanUp {}
-
-impl Drop for CleanUp {
-    fn drop(&mut self) {
-        #[cfg(unix)]
-        unsafe {
-            libc::raise(libc::SIGINT);
         }
     }
 }
