@@ -1,20 +1,16 @@
 #![allow(dead_code, unused_variables, unused_mut)]
 
-/*
- * This is a modified version of
- * https://github.com/RustAudio/rodio/blob/55d957f8b40c59fccea4162c4b03f6dd87a7a4d9/src/decoder/mp3.rs
- * which removes the "Seek" trait bound for streaming network audio.
- *
- * Related GitHub issue:
- * https://github.com/RustAudio/rodio/issues/333
-*/
-
 use minimp3::{Decoder, Frame};
 use std::io::Read;
 use std::time::Duration;
 
 use crate::Source;
 
+/// This is a modified version of [rodio's Mp3Decoder](https://github.com/RustAudio/rodio/blob/55d957f8b40c59fccea4162c4b03f6dd87a7a4d9/src/decoder/mp3.rs)
+/// which removes the "Seek" trait bound for streaming network audio.
+///
+/// Related GitHub issue:
+/// https://github.com/RustAudio/rodio/issues/333
 pub struct Mp3StreamDecoder<R>
 where
     R: Read,

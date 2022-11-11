@@ -1,0 +1,42 @@
+# When: 
+# - A release is published, or ...
+# - A draft release is changed to a release, or ...
+# - A pre-release is changed to a release
+#
+# Do:
+# - Publish to crates.io
+# - Publish to WinGet on Windows
+
+name: Publish
+
+on:
+  release:
+    types: [released]
+
+env: 
+  CARGO_TERM_COLOR: always
+
+jobs: 
+  publish-on-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install `rust` toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        profile: minimal # minimal component installation (ie, no documentation)
+        target: x86_64-pc-windows-msvc
+
+    - name: Publish to crates.io
+      run: cargo publish --token ${{ secrets.CARGO_TOKEN }}
+
+    - name: Publish to WinGet
+      uses: vedantmgoyal2009/winget-releaser@v1
+      with:
+        identifier: JasonWei512.code-radio-cli
+        installers-regex: '\.exe$' # Only .exe files
+        token: ${{ secrets.WINGET_TOKEN }}
