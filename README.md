@@ -10,14 +10,20 @@ A command line music radio client for https://coderadio.freecodecamp.org, writte
 ## Install
 
 - Download prebuilt binary from [GitHub release page](https://github.com/JasonWei512/code-radio-cli/releases).
+  
+- 🪟 On Windows, install with [WinGet](https://github.com/microsoft/winget-cli):
+  
+  ```
+  winget install code-radio-cli
+  ```
 
-- Or install with [Cargo](https://rustup.rs/):
+- 🦀 Install with [Cargo](https://rustup.rs/):
   
   ```
   cargo install code-radio-cli
   ```
 
-  Then run `code-radio` in command line.
+  After installation, run `code-radio` in command line to start. You may need to restart your shell first.
 
 ### ⚠ About building and running on Linux 🐧
 
