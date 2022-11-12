@@ -13,7 +13,6 @@ use colored::Colorize;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use model::{CodeRadioMessage, Remote};
-use once_cell::sync::Lazy;
 use player::Player;
 use prettytable::{cell, row, Table};
 use rodio::Source;
@@ -24,8 +23,8 @@ const WEBSOCKET_API_URL: &str =
     "wss://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
 const REST_API_URL: &str = "https://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
 
-static PLAYER: Lazy<Mutex<Option<Player>>> = Lazy::new(|| Mutex::new(None));
-static PROGRESS_BAR: Lazy<Mutex<Option<ProgressBar>>> = Lazy::new(|| Mutex::new(None));
+static PLAYER: Mutex<Option<Player>> = Mutex::new(None);
+static PROGRESS_BAR: Mutex<Option<ProgressBar>> = Mutex::new(None);
 
 #[tokio::main]
 async fn main() {

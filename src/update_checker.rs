@@ -2,6 +2,7 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use tokio::sync::Mutex;
 use version_compare::Version;
 
 const LATEST_RELEASE_CACHE_FILE_NAME: &str = "e128c5f5-0a56-41d3-a121-1f2c8bb88417";
@@ -11,6 +12,8 @@ static LATEST_RELEASE_CACHE_FILE_PATH: Lazy<PathBuf> = Lazy::new(|| {
     pathbuf.push(LATEST_RELEASE_CACHE_FILE_NAME);
     pathbuf
 });
+
+static FILE_IO_MUTEX: Mutex<()> = Mutex::const_new(());
 
 // Use a cache file in temp dir to store latest release info and speed up the process of checking update
 pub async fn get_new_release() -> Result<Option<Release>> {
@@ -57,6 +60,8 @@ async fn get_latest_release_from_github() -> Result<Release> {
 }
 
 async fn try_read_latest_release_from_cache_file() -> Option<Release> {
+    let _file_io_mutex_guard = FILE_IO_MUTEX.lock().await;
+
     let cache_file_content = tokio::fs::read_to_string(LATEST_RELEASE_CACHE_FILE_PATH.as_path())
         .await
         .ok()?;
@@ -64,12 +69,15 @@ async fn try_read_latest_release_from_cache_file() -> Option<Release> {
 }
 
 async fn write_latest_release_to_cache_file(release: &Release) -> Result<()> {
+    let _file_io_mutex_guard = FILE_IO_MUTEX.lock().await;
+
     let cache_file_content = serde_json::to_string_pretty(release)?;
     tokio::fs::write(
         &LATEST_RELEASE_CACHE_FILE_PATH.as_path(),
         cache_file_content.as_bytes(),
     )
     .await?;
+
     Ok(())
 }
 
