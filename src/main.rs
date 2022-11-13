@@ -163,24 +163,22 @@ async fn start_playing(args: Args) -> Result<()> {
 
             let progress_bar = ProgressBar::new(progress_bar_len)
                 .with_style(
-                    ProgressStyle::with_template(
-                        &(format!("{{prefix}}  {{wide_bar}} {{progress_info}} - {{msg}}")),
-                    )
-                    .unwrap()
-                    .with_key(
-                        "progress_info",
-                        |state: &ProgressState, write: &mut dyn Write| {
-                            let progress_info =
-                                get_progress_bar_progress_info(state.pos(), state.len());
-                            write!(write, "{}", progress_info).unwrap()
-                        },
-                    ),
+                    ProgressStyle::with_template("{prefix}  {wide_bar} {progress_info} - {msg}")
+                        .unwrap()
+                        .with_key(
+                            "progress_info",
+                            |state: &ProgressState, write: &mut dyn Write| {
+                                let progress_info =
+                                    get_progress_bar_progress_info(state.pos(), state.len());
+                                write!(write, "{}", progress_info).unwrap()
+                            },
+                        ),
                 )
                 .with_position(elapsed_seconds as u64)
                 .with_prefix(progress_bar_preffix)
                 .with_message(progress_bar_suffix);
             progress_bar.tick();
-            
+
             *progress_bar_guard = Some(progress_bar);
         } else {
             if let Some(progress_bar) = progress_bar_guard.as_ref() {
@@ -281,10 +279,11 @@ fn get_progress_bar_suffix(listener_count: i64) -> String {
     format!("Listeners: {}", listener_count)
 }
 
-// If elapsed seconds and total seconds is both known:
-//     "00:12 / 03:45"
-// If total seconds is unknown:
-//     "00:12"
+// If elapsed seconds and total seconds are both known:
+//     "01:14 / 05:14"
+//
+// If elapsed seconds is known but total seconds is unknown:
+//     "01:14"
 fn get_progress_bar_progress_info(elapsed_seconds: u64, total_seconds: Option<u64>) -> String {
     let humanized_elapsed_duration =
         utils::humanize_seconds_to_minutes_and_seconds(elapsed_seconds as u64);
@@ -322,6 +321,7 @@ fn handle_keyboard_events() -> ! {
                     if player.volume() != volume {
                         player.set_volume(volume);
                         if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_mut() {
+                            // 波動拳！
                             progress_bar.set_prefix(get_progress_bar_prefix(Some(volume)));
                         };
                     }
