@@ -11,12 +11,12 @@ use args::Args;
 use clap::Parser;
 use colored::Colorize;
 use futures_util::StreamExt;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use model::{CodeRadioMessage, Remote};
 use player::Player;
 use prettytable::{cell, row, Table};
 use rodio::Source;
-use std::{sync::Mutex, thread, time::Duration};
+use std::{fmt::Write, sync::Mutex, thread, time::Duration};
 use terminal::writeline;
 
 const WEBSOCKET_API_URL: &str =
@@ -79,6 +79,7 @@ async fn start_playing(args: Args) -> Result<()> {
     let mut last_song_id = String::new();
 
     let (mut websocket_stream, _) = tokio_tungstenite::connect_async(WEBSOCKET_API_URL).await?;
+    tokio::spawn(tick_progress_bar());
 
     while let Some(message) = parse_websocket_message(websocket_stream.next().await).await? {
         if listen_url.is_none() {
@@ -132,21 +133,13 @@ async fn start_playing(args: Args) -> Result<()> {
 
         // Display song info
         let song = message.now_playing.song;
-        let total_seconds = message.now_playing.duration; // Note: This may be 0
+
         let elapsed_seconds = message.now_playing.elapsed;
-        let humanized_total_duration =
-            utils::humanize_seconds_to_minutes_and_seconds(total_seconds);
-        let humanized_elapsed_duration =
-            utils::humanize_seconds_to_minutes_and_seconds(elapsed_seconds);
-        let listeners_info = format!("Listeners: {}", message.listeners.current);
-        let progress_message = if total_seconds > 0 {
-            format!(
-                "{} / {} - {}",
-                humanized_elapsed_duration, humanized_total_duration, listeners_info
-            )
-        } else {
-            format!("{} - {}", humanized_elapsed_duration, listeners_info)
-        };
+        let total_seconds = message.now_playing.duration; // Note: This may be 0
+
+        let progress_bar_preffix =
+            get_progress_bar_prefix(PLAYER.lock().unwrap().as_ref().map(|p| p.volume()));
+        let progress_bar_suffix = get_progress_bar_suffix(message.listeners.current);
 
         let mut progress_bar_guard = PROGRESS_BAR.lock().unwrap();
 
@@ -167,22 +160,32 @@ async fn start_playing(args: Args) -> Result<()> {
             } else {
                 u64::MAX
             };
+
             let progress_bar = ProgressBar::new(progress_bar_len)
+                .with_style(
+                    ProgressStyle::with_template(
+                        &(format!("{{prefix}}  {{wide_bar}} {{progress_info}} - {{msg}}")),
+                    )
+                    .unwrap()
+                    .with_key(
+                        "progress_info",
+                        |state: &ProgressState, write: &mut dyn Write| {
+                            let progress_info =
+                                get_progress_bar_progress_info(state.pos(), state.len());
+                            write!(write, "{}", progress_info).unwrap()
+                        },
+                    ),
+                )
                 .with_position(elapsed_seconds as u64)
-                .with_message(progress_message)
-                .with_style(ProgressStyle::with_template(
-                    &(format!("{{prefix}}  {{wide_bar}} {{msg}}")),
-                )?);
-
-            let volume = PLAYER.lock().unwrap().as_ref().map(|p| p.volume());
-            progress_bar.set_prefix(get_progress_bar_prefix(volume));
+                .with_prefix(progress_bar_preffix)
+                .with_message(progress_bar_suffix);
             progress_bar.tick();
-
+            
             *progress_bar_guard = Some(progress_bar);
         } else {
             if let Some(progress_bar) = progress_bar_guard.as_ref() {
                 progress_bar.set_position(elapsed_seconds as u64);
-                progress_bar.set_message(progress_message);
+                progress_bar.set_message(progress_bar_suffix);
             }
         }
     }
@@ -274,6 +277,42 @@ fn get_progress_bar_prefix(volume: Option<u8>) -> String {
     format!("Volume {}/9", volume_char)
 }
 
+fn get_progress_bar_suffix(listener_count: i64) -> String {
+    format!("Listeners: {}", listener_count)
+}
+
+// If elapsed seconds and total seconds is both known:
+//     "00:12 / 03:45"
+// If total seconds is unknown:
+//     "00:12"
+fn get_progress_bar_progress_info(elapsed_seconds: u64, total_seconds: Option<u64>) -> String {
+    let humanized_elapsed_duration =
+        utils::humanize_seconds_to_minutes_and_seconds(elapsed_seconds as u64);
+
+    if let Some(total_seconds) = total_seconds {
+        if total_seconds != u64::MAX {
+            let humanized_total_duration =
+                utils::humanize_seconds_to_minutes_and_seconds(total_seconds as u64);
+            return format!(
+                "{} / {}",
+                humanized_elapsed_duration, humanized_total_duration
+            );
+        }
+    }
+
+    humanized_elapsed_duration
+}
+
+async fn tick_progress_bar() {
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    loop {
+        interval.tick().await;
+        if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_ref() {
+            progress_bar.inc(1);
+        }
+    }
+}
+
 fn handle_keyboard_events() -> ! {
     loop {
         if let Some(n) = terminal::read_char().ok().and_then(|c| c.to_digit(10)) {
@@ -284,7 +323,6 @@ fn handle_keyboard_events() -> ! {
                         player.set_volume(volume);
                         if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_mut() {
                             progress_bar.set_prefix(get_progress_bar_prefix(Some(volume)));
-                            progress_bar.tick();
                         };
                     }
                 }
