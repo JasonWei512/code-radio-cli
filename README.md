@@ -3,7 +3,9 @@
 [![Crate](https://img.shields.io/crates/v/code-radio-cli.svg)](https://crates.io/crates/code-radio-cli)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/JasonWei512/code-radio-cli)](https://github.com/JasonWei512/code-radio-cli/releases)
 
-A command line music radio client for https://coderadio.freecodecamp.org, written in Rust.
+🎵 24/7 music designed for coding, now in your terminal!
+
+A command line music radio client for https://coderadio.freecodecamp.org ([about](https://www.freecodecamp.org/news/code-radio-24-7/)), written in Rust.
 
 ![Screenshot](./.github/images/screenshot.jpg)
 
