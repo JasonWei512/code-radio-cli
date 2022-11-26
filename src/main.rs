@@ -57,11 +57,15 @@ async fn start_playing(args: Args) -> Result<()> {
 
     display_welcome_message(&args);
 
+    // Connect websocket in background while creating `Player` to improve startup speed
+    let websocket_connect_task = tokio::spawn(tokio_tungstenite::connect_async(WEBSOCKET_API_URL));
+
     let loading_spinner = ProgressBar::new_spinner()
         .with_style(ProgressStyle::with_template("{spinner} {msg}")?)
         .with_message("Initializing audio device...");
     loading_spinner.enable_steady_tick(Duration::from_millis(120));
 
+    // Creating a `Player` might be time consuming. It might take several seconds on first run.
     match Player::try_new() {
         Ok(mut player) => {
             player.set_volume(args.volume);
@@ -78,7 +82,7 @@ async fn start_playing(args: Args) -> Result<()> {
     let mut listen_url = Option::None;
     let mut last_song_id = String::new();
 
-    let (mut websocket_stream, _) = tokio_tungstenite::connect_async(WEBSOCKET_API_URL).await?;
+    let (mut websocket_stream, _) = websocket_connect_task.await??;
     tokio::spawn(tick_progress_bar());
 
     while let Some(message) = parse_websocket_message(websocket_stream.next().await).await? {

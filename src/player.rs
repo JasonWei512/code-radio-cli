@@ -18,6 +18,7 @@ enum PlayerMessage {
 }
 
 impl Player {
+    /// Creating a `Player` might be time consuming. It might take several seconds on first run.
     pub fn try_new() -> Result<Player> {
         OutputStream::try_default().context("Audio device initialization failed")?;
 
