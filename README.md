@@ -1,6 +1,6 @@
 # Code Radio CLI
 
-[![Crate](https://img.shields.io/crates/v/code-radio-cli.svg)](https://crates.io/crates/code-radio-cli)
+[![Crate](https://img.shields.io/crates/v/code-radio-cli.svg?color=orange)](https://crates.io/crates/code-radio-cli)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/JasonWei512/code-radio-cli)](https://github.com/JasonWei512/code-radio-cli/releases)
 
 🎵 24/7 music designed for coding, now in your terminal!
