@@ -184,11 +184,9 @@ async fn start_playing(args: Args) -> Result<()> {
             progress_bar.tick();
 
             *progress_bar_guard = Some(progress_bar);
-        } else {
-            if let Some(progress_bar) = progress_bar_guard.as_ref() {
+        } else if let Some(progress_bar) = progress_bar_guard.as_ref() {
                 progress_bar.set_position(elapsed_seconds as u64);
                 progress_bar.set_message(progress_bar_suffix);
-            }
         }
     }
 
@@ -290,12 +288,12 @@ fn get_progress_bar_suffix(listener_count: i64) -> String {
 //     "01:14"
 fn get_progress_bar_progress_info(elapsed_seconds: u64, total_seconds: Option<u64>) -> String {
     let humanized_elapsed_duration =
-        utils::humanize_seconds_to_minutes_and_seconds(elapsed_seconds as u64);
+        utils::humanize_seconds_to_minutes_and_seconds(elapsed_seconds);
 
     if let Some(total_seconds) = total_seconds {
         if total_seconds != u64::MAX {
             let humanized_total_duration =
-                utils::humanize_seconds_to_minutes_and_seconds(total_seconds as u64);
+                utils::humanize_seconds_to_minutes_and_seconds(total_seconds);
             return format!(
                 "{} / {}",
                 humanized_elapsed_duration, humanized_total_duration
