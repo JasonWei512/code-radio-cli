@@ -3,7 +3,7 @@ use console::Term;
 use once_cell::sync::Lazy;
 use std::fmt::Display;
 
-pub static STDOUT: Lazy<Term> = Lazy::new(|| Term::stdout());
+pub static STDOUT: Lazy<Term> = Lazy::new(Term::stdout);
 
 pub fn enable_color_on_windows() {
     #[cfg(windows)]

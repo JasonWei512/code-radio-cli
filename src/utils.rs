@@ -7,7 +7,7 @@ pub fn get_current_executable_name() -> String {
         return executable_name;
     }
 
-    return "code-radio".to_string();
+    "code-radio".to_string()
 }
 
 fn try_get_current_executable_name() -> Option<String> {
