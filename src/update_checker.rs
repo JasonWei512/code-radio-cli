@@ -51,7 +51,7 @@ async fn get_latest_release_from_github() -> Result<Release> {
 
     let latest_release = Release {
         version: latest_github_response.tag_name.chars().skip(1).collect(),
-        url: latest_github_response.html_url.to_owned(),
+        url: latest_github_response.html_url,
     };
 
     let _ = write_latest_release_to_cache_file(&latest_release).await;
@@ -90,14 +90,14 @@ fn release_newer_than_current_package(release: &Release) -> bool {
     false
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Release {
     pub version: String, // Like "1.3.5"
     pub url: String,
 }
 
 // This is for deserializing GitHub's latest release api response
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct GithubRelease {
     pub tag_name: String, // Like "v1.3.5"
     pub html_url: String,

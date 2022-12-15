@@ -31,7 +31,7 @@ where
         let mut decoder = Decoder::new(data);
         let current_frame = decoder.next_frame().unwrap();
 
-        Ok(Mp3StreamDecoder {
+        Ok(Self {
             decoder,
             current_frame,
             current_frame_offset: 0,

@@ -52,6 +52,62 @@ async fn start() -> Result<()> {
     Ok(())
 }
 
+fn update_status_bar(message: CodeRadioMessage, last_song_id: &mut String){
+    // Display song info
+    let song = message.now_playing.song;
+
+    let elapsed_seconds = message.now_playing.elapsed;
+    let total_seconds = message.now_playing.duration; // Note: This may be 0
+
+    let progress_bar_preffix =
+            get_progress_bar_prefix(PLAYER.lock().unwrap().as_ref().map(Player::volume));
+    let progress_bar_suffix = get_progress_bar_suffix(message.listeners.current);
+
+    let mut progress_bar_guard = PROGRESS_BAR.lock().unwrap();
+    if song.id != *last_song_id {
+        if let Some(progress_bar) = progress_bar_guard.as_ref() {
+            progress_bar.finish_and_clear();
+        }
+
+        *last_song_id = song.id.clone();
+
+        writeline!();
+        writeline!("{}       {}", "Song:".bright_green(), song.title);
+        writeline!("{}     {}", "Artist:".bright_green(), song.artist);
+        writeline!("{}      {}", "Album:".bright_green(), song.album);
+
+        let progress_bar_len = if total_seconds > 0 {
+            total_seconds as u64
+        } else {
+            u64::MAX
+        };
+
+        let progress_bar_style = ProgressStyle::with_template("{prefix}  {wide_bar} {progress_info} - {msg}")
+            .unwrap()
+            .with_key(
+                "progress_info",
+                |state: &ProgressState, write: &mut dyn Write| {
+                    let progress_info =
+                        get_progress_bar_progress_info(state.pos(), state.len());
+                    write!(write, "{progress_info}").unwrap();
+                },
+            );
+
+        let progress_bar = ProgressBar::new(progress_bar_len)
+            .with_style(progress_bar_style)
+            .with_position(elapsed_seconds as u64)
+            .with_prefix(progress_bar_preffix)
+            .with_message(progress_bar_suffix);
+        
+        progress_bar.tick();
+
+        *progress_bar_guard = Some(progress_bar);
+    } else if let Some(progress_bar) = progress_bar_guard.as_ref() {
+            progress_bar.set_position(elapsed_seconds as u64);
+            progress_bar.set_message(progress_bar_suffix);
+    }
+}
+
 async fn start_playing(args: Args) -> Result<()> {
     let mut update_checking_task_holder = Some(tokio::spawn(update_checker::get_new_release()));
 
@@ -79,13 +135,13 @@ async fn start_playing(args: Args) -> Result<()> {
 
     loading_spinner.set_message("Connecting...");
 
-    let mut listen_url = Option::None;
+    let mut listen_url = None;
     let mut last_song_id = String::new();
 
     let (mut websocket_stream, _) = websocket_connect_task.await??;
     tokio::spawn(tick_progress_bar());
 
-    while let Some(message) = parse_websocket_message(websocket_stream.next().await).await? {
+    while let Some(message) = parse_websocket_message(websocket_stream.next().await)? {
         if listen_url.is_none() {
             // Start playing
             loading_spinner.finish_and_clear();
@@ -101,7 +157,7 @@ async fn start_playing(args: Args) -> Result<()> {
                         }
                     }
                 }
-                None => message.station.listen_url,
+                None => message.station.listen_url.clone(),
             };
 
             // Notify user if a new version is available
@@ -135,60 +191,7 @@ async fn start_playing(args: Args) -> Result<()> {
             thread::spawn(handle_keyboard_events);
         }
 
-        // Display song info
-        let song = message.now_playing.song;
-
-        let elapsed_seconds = message.now_playing.elapsed;
-        let total_seconds = message.now_playing.duration; // Note: This may be 0
-
-        let progress_bar_preffix =
-            get_progress_bar_prefix(PLAYER.lock().unwrap().as_ref().map(|p| p.volume()));
-        let progress_bar_suffix = get_progress_bar_suffix(message.listeners.current);
-
-        let mut progress_bar_guard = PROGRESS_BAR.lock().unwrap();
-
-        if song.id != last_song_id {
-            if let Some(progress_bar) = progress_bar_guard.as_ref() {
-                progress_bar.finish_and_clear();
-            }
-
-            last_song_id = song.id.clone();
-
-            writeline!();
-            writeline!("{}       {}", "Song:".bright_green(), song.title);
-            writeline!("{}     {}", "Artist:".bright_green(), song.artist);
-            writeline!("{}      {}", "Album:".bright_green(), song.album);
-
-            let progress_bar_len = if total_seconds > 0 {
-                total_seconds as u64
-            } else {
-                u64::MAX
-            };
-
-            let progress_bar_style = ProgressStyle::with_template("{prefix}  {wide_bar} {progress_info} - {msg}")
-                .unwrap()
-                .with_key(
-                    "progress_info",
-                    |state: &ProgressState, write: &mut dyn Write| {
-                        let progress_info =
-                            get_progress_bar_progress_info(state.pos(), state.len());
-                        write!(write, "{progress_info}").unwrap()
-                    },
-                );
-
-            let progress_bar = ProgressBar::new(progress_bar_len)
-                .with_style(progress_bar_style)
-                .with_position(elapsed_seconds as u64)
-                .with_prefix(progress_bar_preffix)
-                .with_message(progress_bar_suffix);
-            
-            progress_bar.tick();
-
-            *progress_bar_guard = Some(progress_bar);
-        } else if let Some(progress_bar) = progress_bar_guard.as_ref() {
-                progress_bar.set_position(elapsed_seconds as u64);
-                progress_bar.set_message(progress_bar_suffix);
-        }
+        update_status_bar(message, &mut last_song_id);
     }
 
     Ok(())
@@ -257,7 +260,7 @@ fn get_stations_from_api_message(message: &CodeRadioMessage) -> Vec<Remote> {
     stations
 }
 
-async fn parse_websocket_message(
+fn parse_websocket_message(
     message: Option<
         Result<tokio_tungstenite::tungstenite::Message, tokio_tungstenite::tungstenite::Error>,
     >,
@@ -271,10 +274,7 @@ async fn parse_websocket_message(
 }
 
 fn get_progress_bar_prefix(volume: Option<u8>) -> String {
-    let volume_char = match volume {
-        Some(v) => v.to_string(),
-        None => "*".to_string(),
-    };
+    let volume_char = volume.map_or_else(|| "*".to_owned(),  |v| v.to_string());
     format!("Volume {volume_char}/9")
 }
 
