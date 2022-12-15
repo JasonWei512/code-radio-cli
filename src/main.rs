@@ -165,22 +165,23 @@ async fn start_playing(args: Args) -> Result<()> {
                 u64::MAX
             };
 
+            let progress_bar_style = ProgressStyle::with_template("{prefix}  {wide_bar} {progress_info} - {msg}")
+                .unwrap()
+                .with_key(
+                    "progress_info",
+                    |state: &ProgressState, write: &mut dyn Write| {
+                        let progress_info =
+                            get_progress_bar_progress_info(state.pos(), state.len());
+                        write!(write, "{progress_info}").unwrap()
+                    },
+                );
+
             let progress_bar = ProgressBar::new(progress_bar_len)
-                .with_style(
-                    ProgressStyle::with_template("{prefix}  {wide_bar} {progress_info} - {msg}")
-                        .unwrap()
-                        .with_key(
-                            "progress_info",
-                            |state: &ProgressState, write: &mut dyn Write| {
-                                let progress_info =
-                                    get_progress_bar_progress_info(state.pos(), state.len());
-                                write!(write, "{}", progress_info).unwrap()
-                            },
-                        ),
-                )
+                .with_style(progress_bar_style)
                 .with_position(elapsed_seconds as u64)
                 .with_prefix(progress_bar_preffix)
                 .with_message(progress_bar_suffix);
+            
             progress_bar.tick();
 
             *progress_bar_guard = Some(progress_bar);
@@ -274,11 +275,11 @@ fn get_progress_bar_prefix(volume: Option<u8>) -> String {
         Some(v) => v.to_string(),
         None => "*".to_string(),
     };
-    format!("Volume {}/9", volume_char)
+    format!("Volume {volume_char}/9")
 }
 
 fn get_progress_bar_suffix(listener_count: i64) -> String {
-    format!("Listeners: {}", listener_count)
+    format!("Listeners: {listener_count}")
 }
 
 // If elapsed seconds and total seconds are both known:
@@ -295,8 +296,7 @@ fn get_progress_bar_progress_info(elapsed_seconds: u64, total_seconds: Option<u6
             let humanized_total_duration =
                 utils::humanize_seconds_to_minutes_and_seconds(total_seconds);
             return format!(
-                "{} / {}",
-                humanized_elapsed_duration, humanized_total_duration
+                "{humanized_elapsed_duration} / {humanized_total_duration}"
             );
         }
     }
@@ -317,17 +317,16 @@ async fn tick_progress_bar() {
 fn handle_keyboard_events() -> ! {
     loop {
         if let Some(n) = terminal::read_char().ok().and_then(|c| c.to_digit(10)) {
-            if n <= 9 {
-                if let Some(player) = PLAYER.lock().unwrap().as_mut() {
-                    let volume = n as u8;
-                    if player.volume() != volume {
-                        player.set_volume(volume);
-                        if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_mut() {
-                            // 波動拳！
-                            progress_bar.set_prefix(get_progress_bar_prefix(Some(volume)));
-                        };
-                    }
+            if let Some(player) = PLAYER.lock().unwrap().as_mut() {
+                let volume = n as u8;
+                if player.volume() == volume {
+                    continue;
                 }
+                player.set_volume(volume);
+                if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_mut() {
+                    // 波動拳！
+                    progress_bar.set_prefix(get_progress_bar_prefix(Some(volume)));
+                };
             }
         }
     }

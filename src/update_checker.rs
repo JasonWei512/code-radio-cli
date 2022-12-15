@@ -25,7 +25,7 @@ pub async fn get_new_release() -> Result<Option<Release>> {
             return Ok(Some(cached_latest_release));
         }
     }
-    return get_new_release_from_github_task.await?;
+    get_new_release_from_github_task.await?
 }
 
 async fn get_new_release_from_github() -> Result<Option<Release>> {
@@ -84,9 +84,7 @@ async fn write_latest_release_to_cache_file(release: &Release) -> Result<()> {
 fn release_newer_than_current_package(release: &Release) -> bool {
     if let Some(current_version) = Version::from(env!("CARGO_PKG_VERSION")) {
         if let Some(release_version) = Version::from(&release.version) {
-            if release_version > current_version {
-                return true;
-            }
+            return release_version > current_version;
         }
     }
     false
