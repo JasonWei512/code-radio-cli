@@ -73,7 +73,7 @@ pub(crate) use writeline;
 /// This method will create an instance of `CleanUpHelper` struct, which implements `Drop` trait.
 /// When it drops, it will send SIGINT (Ctrl+C) signal to the program itself on Unix-like OS, which fixes the bug.
 /// Rust's Drop trait will guarantee the method to be called.
-pub fn create_clean_up_helper() -> CleanUpHelper {
+pub const fn create_clean_up_helper() -> CleanUpHelper {
     CleanUpHelper {}
 }
 

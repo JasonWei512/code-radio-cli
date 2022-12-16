@@ -19,7 +19,7 @@ enum PlayerMessage {
 
 impl Player {
     /// Creating a `Player` might be time consuming. It might take several seconds on first run.
-    pub fn try_new() -> Result<Player> {
+    pub fn try_new() -> Result<Self> {
         OutputStream::try_default().context("Audio device initialization failed")?;
 
         let (sender, receiver) = mpsc::channel();
@@ -37,7 +37,7 @@ impl Player {
                 let source = Mp3StreamDecoder::new(response).unwrap();
                 let sink = Sink::try_new(&stream_handle).unwrap();
                 sink.append(source);
-                sink.set_volume(Player::map_volume_to_rodio_volume(current_volume));
+                sink.set_volume(Self::map_volume_to_rodio_volume(current_volume));
 
                 while let Ok(message) = receiver.recv() {
                     match message {
@@ -48,14 +48,14 @@ impl Player {
                         }
                         PlayerMessage::Volume { volume } => {
                             current_volume = volume;
-                            sink.set_volume(Player::map_volume_to_rodio_volume(current_volume));
+                            sink.set_volume(Self::map_volume_to_rodio_volume(current_volume));
                         }
                     }
                 }
             }
         });
 
-        Ok(Player { sender, volume: 9 })
+        Ok(Self { sender, volume: 9 })
     }
 
     pub fn play(&self, listen_url: &str) {
@@ -67,7 +67,7 @@ impl Player {
             .unwrap();
     }
 
-    pub fn volume(&self) -> u8 {
+    pub const fn volume(&self) -> u8 {
         self.volume
     }
 
