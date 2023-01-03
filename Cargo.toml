@@ -1,7 +1,7 @@
 [package]
 name = "code-radio-cli"
 description = "A command line music radio client for https://coderadio.freecodecamp.org"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Jason Wei"]
 edition = "2021"
 readme = "README.md"
