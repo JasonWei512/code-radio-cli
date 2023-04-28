@@ -6,15 +6,15 @@ mod terminal;
 mod update_checker;
 mod utils;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use args::Args;
 use clap::Parser;
 use colored::Colorize;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use inquire::Select;
 use model::{CodeRadioMessage, Remote};
 use player::Player;
-use prettytable::{cell, row, Table};
 use rodio::Source;
 use std::{fmt::Write, sync::Mutex, thread, time::Duration};
 use terminal::writeline;
@@ -40,14 +40,11 @@ async fn main() {
 async fn start() -> Result<()> {
     let args = Args::parse();
 
-    if args.list_stations {
-        print_stations().await?;
-    } else {
-        if args.volume > 9 {
-            return Err(anyhow!("Volume must be between 0 and 9"));
-        }
-        start_playing(args).await?;
+    if args.volume > 9 {
+        return Err(anyhow!("Volume must be between 0 and 9"));
     }
+
+    start_playing(args).await?;
 
     Ok(())
 }
@@ -56,6 +53,13 @@ async fn start_playing(args: Args) -> Result<()> {
     let mut update_checking_task_holder = Some(tokio::spawn(update_checker::get_new_release()));
 
     display_welcome_message(&args);
+
+    let mut selected_station: Option<Remote> = None;
+
+    if args.select_station {
+        let station = select_station().await?;
+        selected_station = Some(station);
+    }
 
     // Connect websocket in background while creating `Player` to improve startup speed
     let websocket_connect_task = tokio::spawn(tokio_tungstenite::connect_async(WEBSOCKET_API_URL));
@@ -92,15 +96,13 @@ async fn start_playing(args: Args) -> Result<()> {
 
             let stations = get_stations_from_api_message(&message);
 
-            let listen_url_value = match args.station {
-                Some(station_id) => {
-                    match stations.iter().find(|station| station.id == station_id) {
-                        Some(station) => station.url.clone(),
-                        None => {
-                            return Err(anyhow!("Station with ID \"{}\" not found", station_id));
-                        }
-                    }
-                }
+            let listen_url_value = match selected_station {
+                Some(ref station) => stations
+                    .iter()
+                    .find(|s| s.id == station.id)
+                    .context(anyhow!("Station with ID \"{}\" not found", station.id))?
+                    .url
+                    .clone(),
                 None => message.station.listen_url.clone(),
             };
 
@@ -299,18 +301,30 @@ fn handle_keyboard_events() -> ! {
     }
 }
 
-async fn print_stations() -> Result<()> {
+async fn select_station() -> Result<Remote> {
+    let loading_spinner = ProgressBar::new_spinner()
+        .with_style(ProgressStyle::with_template("{spinner} {msg}")?)
+        .with_message("Connecting...");
+    loading_spinner.enable_steady_tick(Duration::from_millis(120));
+
     let stations = get_stations_from_rest_api().await?;
 
-    let mut table = Table::new();
-    table.set_format(*prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-    table.set_titles(row!["Station ID", "Name", "Bitrate (kbps)"]);
-    for station in stations {
-        table.add_row(row![station.id, station.name, station.bitrate]);
-    }
-    table.printstd();
+    loading_spinner.finish_and_clear();
 
-    Ok(())
+    let station_names: Vec<&str> = stations.iter().map(|s| s.name.as_str()).collect();
+
+    let selected_station_name = Select::new("Select a station:", station_names)
+        .with_page_size(8)
+        .prompt()?;
+    let selected_station = stations
+        .iter()
+        .find(|s| s.name == selected_station_name)
+        .unwrap()
+        .clone();
+
+    writeline!();
+
+    Ok(selected_station)
 }
 
 async fn get_stations_from_rest_api() -> Result<Vec<Remote>> {
