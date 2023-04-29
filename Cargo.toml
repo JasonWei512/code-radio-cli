@@ -29,11 +29,11 @@ rodio = "0.16.0"
 reqwest = { version = "0.11.10", features = ["blocking", "json"] }
 minimp3 = "0.5.1"
 clap = { version = "3.1.18", features = ["derive"] }
-prettytable-rs = "0.8.0"
 indicatif = "0.17.1"
 console = "0.15.0"
 colored = "2.0.0"
 version-compare = "0.1.0"
+inquire = { version = "0.6.1", default-features = false, features = ["console"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.137"

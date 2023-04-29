@@ -43,9 +43,8 @@ code-radio [OPTIONS]
 
 OPTIONS:
     -h, --help                 Print help information
-    -l, --list-stations        List all stations
     -n, --no-logo              Do not display logo
-    -s, --station <STATION>    The ID of the station to play from
+    -s, --select-station       Manually select a station
     -v, --volume <VOLUME>      Volume, between 0 and 9 [default: 9]
     -V, --version              Print version information
 ```
