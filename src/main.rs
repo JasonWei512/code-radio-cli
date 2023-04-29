@@ -207,6 +207,7 @@ async fn get_next_websocket_message(
 async fn reconnect_websocket_and_get_next_message(
     websocket_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
 ) -> Result<CodeRadioMessage> {
+    let _ = websocket_stream.close(None).await;
     let (new_websocket_stream, _) = tokio_tungstenite::connect_async(WEBSOCKET_API_URL).await?;
     *websocket_stream = new_websocket_stream;
 
