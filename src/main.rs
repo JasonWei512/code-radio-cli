@@ -18,6 +18,8 @@ use player::Player;
 use rodio::Source;
 use std::{fmt::Write, sync::Mutex, thread, time::Duration};
 use terminal::writeline;
+use tokio::{net::TcpStream, time::sleep};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 const WEBSOCKET_API_URL: &str =
     "wss://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
@@ -89,7 +91,8 @@ async fn start_playing(args: Args) -> Result<()> {
     let (mut websocket_stream, _) = websocket_connect_task.await??;
     tokio::spawn(tick_progress_bar());
 
-    while let Some(message) = parse_websocket_message(websocket_stream.next().await)? {
+    loop {
+        let message = get_next_websocket_message(&mut websocket_stream).await?;
         if listen_url.is_none() {
             // Start playing
             loading_spinner.finish_and_clear();
@@ -139,8 +142,6 @@ async fn start_playing(args: Args) -> Result<()> {
 
         update_song_info_on_screen(message, &mut last_song_id);
     }
-
-    Ok(())
 }
 
 fn display_welcome_message(args: &Args) {
@@ -174,17 +175,51 @@ Run {} to get more help.",
     writeline!();
 }
 
-fn parse_websocket_message(
-    message: Option<
-        Result<tokio_tungstenite::tungstenite::Message, tokio_tungstenite::tungstenite::Error>,
-    >,
-) -> Result<Option<CodeRadioMessage>> {
-    if let Some(message) = message {
-        let message: CodeRadioMessage = serde_json::de::from_str(&message?.into_text()?)?;
-        Ok(Some(message))
-    } else {
-        Ok(None)
+async fn get_next_websocket_message(
+    websocket_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
+) -> Result<CodeRadioMessage> {
+    if let Some(Ok(message)) = websocket_stream.next().await {
+        if let Ok(message_text) = message.into_text() {
+            if let Ok(code_radio_message) = serde_json::de::from_str(message_text.as_str()) {
+                return Ok(code_radio_message);
+            }
+        }
     }
+
+    // Cannot get message from WebSocket. Try to reconnect.
+
+    let mut retry_count = 3;
+
+    loop {
+        match reconnect_websocket_and_get_next_message(websocket_stream).await {
+            Ok(result) => return Ok(result),
+            Err(error) => {
+                retry_count -= 1;
+                if retry_count == 0 {
+                    return Err(error);
+                }
+                sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn reconnect_websocket_and_get_next_message(
+    websocket_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
+) -> Result<CodeRadioMessage> {
+    let _ = websocket_stream.close(None).await;
+    let (new_websocket_stream, _) = tokio_tungstenite::connect_async(WEBSOCKET_API_URL).await?;
+    *websocket_stream = new_websocket_stream;
+
+    let message = websocket_stream
+        .next()
+        .await
+        .context("Cannot get message from WebSocket")??;
+
+    let code_radio_message: CodeRadioMessage =
+        serde_json::de::from_str(message.into_text()?.as_str())?;
+
+    Ok(code_radio_message)
 }
 
 // (Call this method when receiving a new message from Code Radio's websocket.)
