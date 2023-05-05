@@ -7,6 +7,7 @@ use std::{
 
 use crate::mp3_stream_decoder::Mp3StreamDecoder;
 
+/// A player for streaming network audio.
 pub struct Player {
     sender: Sender<PlayerMessage>,
     volume: u8, // Between 0 and 9

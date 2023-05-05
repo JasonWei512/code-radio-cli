@@ -25,6 +25,8 @@ const WEBSOCKET_API_URL: &str =
     "wss://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
 const REST_API_URL: &str = "https://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
 
+const LOADING_SPINNER_TICK_INTERVAL: Duration = Duration::from_millis(120);
+
 static PLAYER: Mutex<Option<Player>> = Mutex::new(None);
 static PROGRESS_BAR: Mutex<Option<ProgressBar>> = Mutex::new(None);
 
@@ -52,24 +54,25 @@ async fn start() -> Result<()> {
 }
 
 async fn start_playing(args: Args) -> Result<()> {
-    let mut update_checking_task_holder = Some(tokio::spawn(update_checker::get_new_release()));
+    // Check update in background
+    let update_checking_task = tokio::spawn(update_checker::get_new_release());
 
     display_welcome_message(&args);
 
-    let mut selected_station: Option<Remote> = None;
+    let selected_station: Option<Remote> = if args.select_station {
+        let station = select_station_interactively().await?;
+        Some(station)
+    } else {
+        None
+    };
 
-    if args.select_station {
-        let station = select_station().await?;
-        selected_station = Some(station);
-    }
-
-    // Connect websocket in background while creating `Player` to improve startup speed
+    // Connect WebSocket in background while creating `Player` to improve startup speed
     let websocket_connect_task = tokio::spawn(tokio_tungstenite::connect_async(WEBSOCKET_API_URL));
 
     let loading_spinner = ProgressBar::new_spinner()
         .with_style(ProgressStyle::with_template("{spinner} {msg}")?)
         .with_message("Initializing audio device...");
-    loading_spinner.enable_steady_tick(Duration::from_millis(120));
+    loading_spinner.enable_steady_tick(LOADING_SPINNER_TICK_INTERVAL);
 
     // Creating a `Player` might be time consuming. It might take several seconds on first run.
     match Player::try_new() {
@@ -85,61 +88,51 @@ async fn start_playing(args: Args) -> Result<()> {
 
     loading_spinner.set_message("Connecting...");
 
-    let mut listen_url = None;
-    let mut last_song_id = String::new();
-
     let (mut websocket_stream, _) = websocket_connect_task.await??;
-    tokio::spawn(tick_progress_bar());
+
+    let message = get_next_websocket_message(&mut websocket_stream).await?;
+
+    loading_spinner.finish_and_clear();
+
+    let stations = get_stations_from_api_message(&message);
+
+    let listen_url = match selected_station {
+        Some(ref station) => stations
+            .iter()
+            .find(|s| s.id == station.id)
+            .context(anyhow!("Station with ID \"{}\" not found", station.id))?
+            .url
+            .clone(),
+        None => message.station.listen_url.clone(),
+    };
+
+    // Notify user if a new version is available
+    if update_checking_task.is_finished() {
+        if let Ok(Ok(Some(new_release))) = update_checking_task.await {
+            writeline!(
+                "{}",
+                format!("New version available: {}", new_release.version).bright_yellow()
+            );
+            writeline!("{}", new_release.url.bright_yellow());
+            writeline!();
+        }
+    }
+
+    if let Some(station) = stations.iter().find(|station| station.url == listen_url) {
+        writeline!("{}    {}", "Station:".bright_green(), station.name);
+    }
+
+    if let Some(player) = PLAYER.lock().unwrap().as_ref() {
+        player.play(&listen_url);
+    }
+
+    let mut last_song_id = String::new();
+    update_song_info_on_screen(message, &mut last_song_id);
+    tokio::spawn(tick_progress_bar_progress());
+    thread::spawn(handle_keyboard_input);
 
     loop {
         let message = get_next_websocket_message(&mut websocket_stream).await?;
-        if listen_url.is_none() {
-            // Start playing
-            loading_spinner.finish_and_clear();
-
-            let stations = get_stations_from_api_message(&message);
-
-            let listen_url_value = match selected_station {
-                Some(ref station) => stations
-                    .iter()
-                    .find(|s| s.id == station.id)
-                    .context(anyhow!("Station with ID \"{}\" not found", station.id))?
-                    .url
-                    .clone(),
-                None => message.station.listen_url.clone(),
-            };
-
-            // Notify user if a new version is available
-            if let Some(update_checking_task) = update_checking_task_holder.take() {
-                if update_checking_task.is_finished() {
-                    if let Ok(Ok(Some(new_release))) = update_checking_task.await {
-                        writeline!(
-                            "{}",
-                            format!("New version available: {}", new_release.version)
-                                .bright_yellow()
-                        );
-                        writeline!("{}", new_release.url.bright_yellow());
-                        writeline!();
-                    }
-                }
-            }
-
-            if let Some(station) = stations
-                .iter()
-                .find(|station| station.url == listen_url_value)
-            {
-                writeline!("{}    {}", "Station:".bright_green(), station.name);
-            }
-
-            if let Some(player) = PLAYER.lock().unwrap().as_ref() {
-                player.play(&listen_url_value);
-            }
-
-            listen_url = Some(listen_url_value);
-
-            thread::spawn(handle_keyboard_events);
-        }
-
         update_song_info_on_screen(message, &mut last_song_id);
     }
 }
@@ -187,7 +180,6 @@ async fn get_next_websocket_message(
     }
 
     // Cannot get message from WebSocket. Try to reconnect.
-
     let mut retry_count = 3;
 
     loop {
@@ -222,9 +214,11 @@ async fn reconnect_websocket_and_get_next_message(
     Ok(code_radio_message)
 }
 
-// (Call this method when receiving a new message from Code Radio's websocket.)
-// Update progress bar's progress and listeners count suffix.
-// If song id changes, print the new song's info on screen.
+/// Update progress bar's progress and listeners count suffix.
+///
+/// If song id changes, print the new song's info on screen.
+///
+/// Call this method when receiving a new message from Code Radio's WebSocket.
 fn update_song_info_on_screen(message: CodeRadioMessage, last_song_id: &mut String) {
     let song = message.now_playing.song;
 
@@ -235,11 +229,15 @@ fn update_song_info_on_screen(message: CodeRadioMessage, last_song_id: &mut Stri
         get_progress_bar_prefix(PLAYER.lock().unwrap().as_ref().map(Player::volume));
     let progress_bar_suffix = get_progress_bar_suffix(message.listeners.current);
 
-    let mut progress_bar_guard = PROGRESS_BAR.lock().unwrap();
-    if song.id != *last_song_id {
-        if let Some(progress_bar) = progress_bar_guard.as_ref() {
-            progress_bar.finish_and_clear();
-        }
+    if song.id == *last_song_id {
+        // Same song
+        update_progress_bar(|p| {
+            p.set_position(elapsed_seconds as u64);
+            p.set_message(progress_bar_suffix);
+        });
+    } else {
+        // New song
+        update_progress_bar(|p| p.finish_and_clear());
 
         *last_song_id = song.id.clone();
 
@@ -274,10 +272,7 @@ fn update_song_info_on_screen(message: CodeRadioMessage, last_song_id: &mut Stri
 
         progress_bar.tick();
 
-        *progress_bar_guard = Some(progress_bar);
-    } else if let Some(progress_bar) = progress_bar_guard.as_ref() {
-        progress_bar.set_position(elapsed_seconds as u64);
-        progress_bar.set_message(progress_bar_suffix);
+        PROGRESS_BAR.lock().unwrap().replace(progress_bar);
     }
 }
 
@@ -290,10 +285,13 @@ fn get_progress_bar_suffix(listener_count: i64) -> String {
     format!("Listeners: {listener_count}")
 }
 
-// If elapsed seconds and total seconds are both known:
-//     "01:14 / 05:14"
-// If elapsed seconds is known but total seconds is unknown:
-//     "01:14"
+/// - If `elapsed_seconds` and `total_seconds` are both known:
+///
+///   `01:14 / 05:14`
+///
+/// - If `elapsed_seconds` is known but `total_seconds` is unknown:
+///
+///   `01:14`
 fn get_progress_bar_progress_info(elapsed_seconds: u64, total_seconds: Option<u64>) -> String {
     let humanized_elapsed_duration =
         utils::humanize_seconds_to_minutes_and_seconds(elapsed_seconds);
@@ -309,17 +307,26 @@ fn get_progress_bar_progress_info(elapsed_seconds: u64, total_seconds: Option<u6
     humanized_elapsed_duration
 }
 
-async fn tick_progress_bar() {
+/// Increase elapsed seconds in progress bar by 1 every second.
+async fn tick_progress_bar_progress() {
     let mut interval = tokio::time::interval(Duration::from_secs(1));
     loop {
         interval.tick().await;
-        if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_ref() {
-            progress_bar.inc(1);
-        }
+        update_progress_bar(|p| p.inc(1));
     }
 }
 
-fn handle_keyboard_events() -> ! {
+fn update_progress_bar<T>(action: T)
+where
+    T: FnOnce(&ProgressBar),
+{
+    if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_ref() {
+        action(progress_bar);
+    }
+}
+
+/// When user press 0-9 on keyboard, adjust player volume.
+fn handle_keyboard_input() -> ! {
     loop {
         if let Some(n) = terminal::read_char().ok().and_then(|c| c.to_digit(10)) {
             if let Some(player) = PLAYER.lock().unwrap().as_mut() {
@@ -328,19 +335,17 @@ fn handle_keyboard_events() -> ! {
                     continue;
                 }
                 player.set_volume(volume);
-                if let Some(progress_bar) = PROGRESS_BAR.lock().unwrap().as_mut() {
-                    progress_bar.set_prefix(get_progress_bar_prefix(Some(volume)));
-                };
+                update_progress_bar(|p| p.set_prefix(get_progress_bar_prefix(Some(volume))));
             }
         }
     }
 }
 
-async fn select_station() -> Result<Remote> {
+async fn select_station_interactively() -> Result<Remote> {
     let loading_spinner = ProgressBar::new_spinner()
         .with_style(ProgressStyle::with_template("{spinner} {msg}")?)
         .with_message("Connecting...");
-    loading_spinner.enable_steady_tick(Duration::from_millis(120));
+    loading_spinner.enable_steady_tick(LOADING_SPINNER_TICK_INTERVAL);
 
     let stations = get_stations_from_rest_api().await?;
 
