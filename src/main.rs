@@ -17,7 +17,6 @@ use model::{CodeRadioMessage, Remote};
 use player::Player;
 use rodio::Source;
 use std::{fmt::Write, sync::Mutex, thread, time::Duration};
-use terminal::writeline;
 use tokio::{net::TcpStream, time::sleep};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
@@ -36,7 +35,7 @@ async fn main() {
     let _terminal_clean_up_helper = terminal::create_clean_up_helper(); // See the comments in "terminal" module
 
     if let Err(e) = start().await {
-        writeline!();
+        println!();
         terminal::print_error(e);
     }
 }
@@ -82,7 +81,7 @@ async fn start_playing(args: Args) -> Result<()> {
         }
         Err(e) => {
             terminal::print_error(e);
-            writeline!();
+            println!();
         }
     }
 
@@ -109,17 +108,17 @@ async fn start_playing(args: Args) -> Result<()> {
     // Notify user if a new version is available
     if update_checking_task.is_finished() {
         if let Ok(Ok(Some(new_release))) = update_checking_task.await {
-            writeline!(
+            println!(
                 "{}",
                 format!("New version available: {}", new_release.version).bright_yellow()
             );
-            writeline!("{}", new_release.url.bright_yellow());
-            writeline!();
+            println!("{}", new_release.url.bright_yellow());
+            println!();
         }
     }
 
     if let Some(station) = stations.iter().find(|station| station.url == listen_url) {
-        writeline!("{}    {}", "Station:".bright_green(), station.name);
+        println!("{}    {}", "Station:".bright_green(), station.name);
     }
 
     if let Some(player) = PLAYER.lock().unwrap().as_ref() {
@@ -161,11 +160,11 @@ Run {} to get more help.",
     );
 
     if !args.no_logo {
-        writeline!("{}", logo);
-        writeline!();
+        println!("{}", logo);
+        println!();
     }
-    writeline!("{}", description);
-    writeline!();
+    println!("{}", description);
+    println!();
 }
 
 async fn get_next_websocket_message(
@@ -241,10 +240,10 @@ fn update_song_info_on_screen(message: CodeRadioMessage, last_song_id: &mut Stri
 
         *last_song_id = song.id.clone();
 
-        writeline!();
-        writeline!("{}       {}", "Song:".bright_green(), song.title);
-        writeline!("{}     {}", "Artist:".bright_green(), song.artist);
-        writeline!("{}      {}", "Album:".bright_green(), song.album);
+        println!();
+        println!("{}       {}", "Song:".bright_green(), song.title);
+        println!("{}     {}", "Artist:".bright_green(), song.artist);
+        println!("{}      {}", "Album:".bright_green(), song.album);
 
         let progress_bar_len = if total_seconds > 0 {
             total_seconds as u64
@@ -362,7 +361,7 @@ async fn select_station_interactively() -> Result<Remote> {
         .unwrap()
         .clone();
 
-    writeline!();
+    println!();
 
     Ok(selected_station)
 }
