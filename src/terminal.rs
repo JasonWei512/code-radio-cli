@@ -32,7 +32,7 @@ pub fn print_error(error: impl Display) {
 /// 4. Terminal exits "raw" mode and returns to "canonical" mode
 /// 5. The method returns the key you pressed
 ///
-/// Unfortunately, on Unix-like OS, if the program exits accidentally when `terminal::read_char()` is blocking,
+/// Unfortunately, on Unix-like OS, if the program exits accidentally when `console::Term::stdout().read_char()` is blocking,
 /// your terminal will stay in "raw" mode and the terminal output will get messy:
 ///
 /// - https://github.com/console-rs/console/issues/36
