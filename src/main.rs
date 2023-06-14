@@ -160,10 +160,10 @@ Run {} to get more help.",
     );
 
     if !args.no_logo {
-        println!("{}", logo);
+        println!("{logo}");
         println!();
     }
-    println!("{}", description);
+    println!("{description}");
     println!();
 }
 
@@ -236,7 +236,7 @@ fn update_song_info_on_screen(message: CodeRadioMessage, last_song_id: &mut Stri
         });
     } else {
         // New song
-        update_progress_bar(|p| p.finish_and_clear());
+        update_progress_bar(ProgressBar::finish_and_clear);
 
         *last_song_id = song.id.clone();
 
