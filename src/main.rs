@@ -1,5 +1,5 @@
 mod args;
-mod model;
+mod models;
 mod mp3_stream_decoder;
 mod player;
 mod terminal;
@@ -10,19 +10,22 @@ use anyhow::{anyhow, Context, Result};
 use args::Args;
 use clap::Parser;
 use colored::Colorize;
-use futures_util::StreamExt;
+use eventsource_client::{Client, SSE::Event};
+use futures_util::{FutureExt, StreamExt};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use inquire::Select;
-use model::{CodeRadioMessage, Remote};
+use models::{
+    code_radio::{CodeRadioMessage, Remote},
+    server_sent_events::{Np, SeverSentEventsChannelMessage},
+};
 use player::Player;
 use rodio::Source;
 use std::{fmt::Write, sync::Mutex, thread, time::Duration};
-use tokio::{net::TcpStream, time::sleep};
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-const WEBSOCKET_API_URL: &str =
-    "wss://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
-const REST_API_URL: &str = "https://coderadio-admin.freecodecamp.org/api/live/nowplaying/coderadio";
+const SERVER_SENT_EVENTS_API_URL: &str =
+    "https://coderadio-admin-v2.freecodecamp.org/api/live/nowplaying/sse?cf_connect=%7B%22subs%22%3A%7B%22station%3Acoderadio%22%3A%7B%7D%7D%7D";
+const REST_API_URL: &str =
+    "https://coderadio-admin-v2.freecodecamp.org/api/nowplaying_static/coderadio.json";
 
 const LOADING_SPINNER_TICK_INTERVAL: Duration = Duration::from_millis(120);
 
@@ -65,8 +68,21 @@ async fn start_playing(args: Args) -> Result<()> {
         None
     };
 
-    // Connect WebSocket in background while creating `Player` to improve startup speed
-    let websocket_connect_task = tokio::spawn(tokio_tungstenite::connect_async(WEBSOCKET_API_URL));
+    // Fetching data in background while creating `Player` to improve startup speed
+    let get_rest_api_message_task = tokio::spawn(get_rest_api_message());
+    let sse_client = eventsource_client::ClientBuilder::for_url(SERVER_SENT_EVENTS_API_URL)
+        .unwrap()
+        .reconnect(
+            eventsource_client::ReconnectOptions::reconnect(true)
+                .retry_initial(false)
+                .delay(Duration::from_secs(1))
+                .backoff_factor(2)
+                .delay_max(Duration::from_secs(20))
+                .build(),
+        )
+        .build();
+    let mut sse_stream = sse_client.stream();
+    sse_stream.next().now_or_never(); // Poll once to start connecting immediately
 
     let loading_spinner = ProgressBar::new_spinner()
         .with_style(ProgressStyle::with_template("{spinner} {msg}")?)
@@ -87,9 +103,7 @@ async fn start_playing(args: Args) -> Result<()> {
 
     loading_spinner.set_message("Connecting...");
 
-    let (mut websocket_stream, _) = websocket_connect_task.await??;
-
-    let message = get_next_websocket_message(&mut websocket_stream).await?;
+    let message = get_rest_api_message_task.await??;
 
     loading_spinner.finish_and_clear();
 
@@ -131,7 +145,7 @@ async fn start_playing(args: Args) -> Result<()> {
     thread::spawn(handle_keyboard_input);
 
     loop {
-        let message = get_next_websocket_message(&mut websocket_stream).await?;
+        let message = get_next_sse_message(&mut sse_stream).await?;
         update_song_info_on_screen(message, &mut last_song_id);
     }
 }
@@ -167,57 +181,31 @@ Run {} to get more help.",
     println!();
 }
 
-async fn get_next_websocket_message(
-    websocket_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
+async fn get_next_sse_message(
+    sse_stream: &mut std::pin::Pin<
+        Box<
+            dyn futures_util::Stream<
+                    Item = std::result::Result<eventsource_client::SSE, eventsource_client::Error>,
+                > + Send
+                + Sync,
+        >,
+    >,
 ) -> Result<CodeRadioMessage> {
-    if let Some(Ok(message)) = websocket_stream.next().await {
-        if let Ok(message_text) = message.into_text() {
-            if let Ok(code_radio_message) = serde_json::de::from_str(message_text.as_str()) {
-                return Ok(code_radio_message);
-            }
-        }
-    }
-
-    // Cannot get message from WebSocket. Try to reconnect.
-    let mut retry_count = 3;
-
     loop {
-        match reconnect_websocket_and_get_next_message(websocket_stream).await {
-            Ok(result) => return Ok(result),
-            Err(error) => {
-                retry_count -= 1;
-                if retry_count == 0 {
-                    return Err(error);
-                }
-                sleep(Duration::from_secs(1)).await;
+        if let Some(Ok(Event(event))) = sse_stream.next().await {
+            if let Ok(data) = serde_json::from_str::<SeverSentEventsChannelMessage<Np>>(&event.data)
+            {
+                return Ok(data.r#pub.data.np);
             }
         }
     }
-}
-
-async fn reconnect_websocket_and_get_next_message(
-    websocket_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
-) -> Result<CodeRadioMessage> {
-    let _ = websocket_stream.close(None).await;
-    let (new_websocket_stream, _) = tokio_tungstenite::connect_async(WEBSOCKET_API_URL).await?;
-    *websocket_stream = new_websocket_stream;
-
-    let message = websocket_stream
-        .next()
-        .await
-        .context("Cannot get message from WebSocket")??;
-
-    let code_radio_message: CodeRadioMessage =
-        serde_json::de::from_str(message.into_text()?.as_str())?;
-
-    Ok(code_radio_message)
 }
 
 /// Update progress bar's progress and listeners count suffix.
 ///
 /// If song id changes, print the new song's info on screen.
 ///
-/// Call this method when receiving a new message from Code Radio's WebSocket.
+/// Call this method when receiving a new message from Code Radio's Server-Sent Events stream.
 fn update_song_info_on_screen(message: CodeRadioMessage, last_song_id: &mut String) {
     let song = message.now_playing.song;
 
@@ -366,8 +354,13 @@ async fn select_station_interactively() -> Result<Remote> {
     Ok(selected_station)
 }
 
-async fn get_stations_from_rest_api() -> Result<Vec<Remote>> {
+async fn get_rest_api_message() -> Result<CodeRadioMessage> {
     let message: CodeRadioMessage = reqwest::get(REST_API_URL).await?.json().await?;
+    Ok(message)
+}
+
+async fn get_stations_from_rest_api() -> Result<Vec<Remote>> {
+    let message = get_rest_api_message().await?;
     let stations = get_stations_from_api_message(&message);
     Ok(stations)
 }
