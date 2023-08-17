@@ -1,0 +1,211 @@
+// A sample message of Code Radio's rest api:
+// https://coderadio-admin-v2.freecodecamp.org/api/nowplaying_static/coderadio.json
+// For more information, see AzuraCast's API documentation:
+// https://docs.azuracast.com/en/developers/apis/now-playing-data
+// https://www.azuracast.com/api/index.html#/Now%20Playing/get_nowplaying
+{
+    "station": {
+        "id": 2,
+        "name": "freeCodeCamp.org Code Radio",
+        "shortcode": "coderadio",
+        "description": "",
+        "frontend": "icecast",
+        "backend": "liquidsoap",
+        "listen_url": "https://coderadio-admin-v2.freecodecamp.org/listen/coderadio/radio.mp3",
+        "url": "https://coderadio.freecodecamp.org",
+        "public_player_url": "https://coderadio-admin-v2.freecodecamp.org/public/coderadio",
+        "playlist_pls_url": "https://coderadio-admin-v2.freecodecamp.org/public/coderadio/playlist.pls",
+        "playlist_m3u_url": "https://coderadio-admin-v2.freecodecamp.org/public/coderadio/playlist.m3u",
+        "is_public": true,
+        "mounts": [
+            {
+                "id": 2,
+                "name": "/radio.mp3 (128kbps MP3)",
+                "url": "https://coderadio-admin-v2.freecodecamp.org/listen/coderadio/radio.mp3",
+                "bitrate": 128,
+                "format": "mp3",
+                "listeners": {
+                    "total": 29,
+                    "unique": 29,
+                    "current": 29
+                },
+                "path": "/radio.mp3",
+                "is_default": true
+            },
+            {
+                "id": 3,
+                "name": "64kbps MP3",
+                "url": "https://coderadio-admin-v2.freecodecamp.org/listen/coderadio/low.mp3",
+                "bitrate": 64,
+                "format": "mp3",
+                "listeners": {
+                    "total": 10,
+                    "unique": 10,
+                    "current": 10
+                },
+                "path": "/low.mp3",
+                "is_default": false
+            }
+        ],
+        "remotes": [],
+        "hls_enabled": false,
+        "hls_url": null,
+        "hls_listeners": 0
+    },
+    "listeners": {
+        "total": 39,
+        "unique": 39,
+        "current": 39
+    },
+    "live": {
+        "is_live": false,
+        "streamer_name": "",
+        "broadcast_start": null,
+        "art": null
+    },
+    "now_playing": {
+        "sh_id": 429585,
+        "played_at": 1692244211,
+        "duration": 344,
+        "playlist": "default",
+        "streamer": "",
+        "is_request": false,
+        "song": {
+            "id": "5a88d72a004e0d647c7b9be162bad664",
+            "text": "Tor - Days Gone (Emancipator Remix)",
+            "artist": "Tor",
+            "title": "Days Gone (Emancipator Remix)",
+            "album": "Blue Book Remixed",
+            "genre": "",
+            "isrc": "",
+            "lyrics": "",
+            "art": "https://coderadio-admin-v2.freecodecamp.org/api/station/2/art/66f30b3de45e7de791e13a2f-1586028052.jpg",
+            "custom_fields": []
+        },
+        "elapsed": 284,
+        "remaining": 60
+    },
+    "playing_next": {
+        "cued_at": 1692244206,
+        "played_at": 1692244547,
+        "duration": 65,
+        "playlist": "default",
+        "is_request": false,
+        "song": {
+            "id": "8e06e87a4aca3b794767fff8281dbd9e",
+            "text": "Nym - Glisten",
+            "artist": "Nym",
+            "title": "Glisten",
+            "album": "Lilac Chaser",
+            "genre": "",
+            "isrc": "",
+            "lyrics": "",
+            "art": "https://coderadio-admin-v2.freecodecamp.org/api/station/2/art/0fff54a72277d25167b6b69b-1586028052.jpg",
+            "custom_fields": []
+        }
+    },
+    "song_history": [
+        {
+            "sh_id": 429584,
+            "played_at": 1692244038,
+            "duration": 176,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "ac39082912e9e36e459d054897505d64",
+                "text": "Evil Needle - Evil Needle - Angel",
+                "artist": "Evil Needle",
+                "title": "Evil Needle - Angel",
+                "album": "Free Downloads",
+                "genre": "",
+                "isrc": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin-v2.freecodecamp.org/api/station/2/art/4d02867728964ed3a5e09676-1586028052.jpg",
+                "custom_fields": []
+            }
+        },
+        {
+            "sh_id": 429583,
+            "played_at": 1692243825,
+            "duration": 215,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "333af0b773e676f600ede07ea61fb233",
+                "text": "Aso - Oceans",
+                "artist": "Aso",
+                "title": "Oceans",
+                "album": "Love Journey",
+                "genre": "",
+                "isrc": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin-v2.freecodecamp.org/api/station/2/art/9a23d6a2c699ebc1802b38c8-1586028052.jpg",
+                "custom_fields": []
+            }
+        },
+        {
+            "sh_id": 429582,
+            "played_at": 1692243710,
+            "duration": 119,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "04e47d52380d95e1003c9aac186ad197",
+                "text": "Trebles and Blues - Off the Record",
+                "artist": "Trebles and Blues",
+                "title": "Off the Record",
+                "album": "Eighth Notes",
+                "genre": "",
+                "isrc": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin-v2.freecodecamp.org/api/station/2/art/323dc83d1bf6af30c22c5615-1586028052.jpg",
+                "custom_fields": []
+            }
+        },
+        {
+            "sh_id": 429581,
+            "played_at": 1692243434,
+            "duration": 279,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "bdaf1f86383a77717bac1d634b133bf5",
+                "text": "Nitsua - Art Of Music Is Ours",
+                "artist": "Nitsua",
+                "title": "Art Of Music Is Ours",
+                "album": "Dayscape",
+                "genre": "",
+                "isrc": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin-v2.freecodecamp.org/api/station/2/art/33753ddbf87d8688b7c1913f-1586028052.jpg",
+                "custom_fields": []
+            }
+        },
+        {
+            "sh_id": 429580,
+            "played_at": 1692243264,
+            "duration": 172,
+            "playlist": "default",
+            "streamer": "",
+            "is_request": false,
+            "song": {
+                "id": "0902f0e497c5a0858335caae6dd62cef",
+                "text": "Flamingosis - Last Stop",
+                "artist": "Flamingosis",
+                "title": "Last Stop",
+                "album": "Flight Fantastic",
+                "genre": "",
+                "isrc": "",
+                "lyrics": "",
+                "art": "https://coderadio-admin-v2.freecodecamp.org/api/station/2/art/d56d44601373787078d3213d.jpg",
+                "custom_fields": []
+            }
+        }
+    ],
+    "is_online": true,
+    "cache": "event"
+}
