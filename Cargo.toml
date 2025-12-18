@@ -26,7 +26,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 rodio = "0.20.1"
 reqwest = { version = "0.12.26", features = ["blocking", "json"] }
-minimp3_fixed = "0.5.4"
+minimp3 = "0.6.1"
 clap = { version = "3.2.25", features = ["derive"] }
 indicatif = "0.18.3"
 console = "0.16.2"
