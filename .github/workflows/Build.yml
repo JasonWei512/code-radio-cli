@@ -83,10 +83,14 @@ jobs:
       run: ${{ matrix.prebuild-config }}
 
     - name: Build
-      run: cargo build --release --target=${{ matrix.target }}
-      
+      run: |
+        cargo build --target=${{ matrix.target }} # Ensure debug build works
+        cargo build --release --target=${{ matrix.target }}    
+
     - name: Run tests
-      run: cargo test --release
+      run: |
+        cargo test  # Ensure tests pass in debug build
+        cargo test --release
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
