@@ -11,11 +11,13 @@ use crate::mp3_stream_decoder::Mp3StreamDecoder;
 pub struct Player {
     sender: Sender<PlayerMessage>,
     volume: u8, // Between 0 and 9
+    muted: bool,
 }
 
 enum PlayerMessage {
     Play { listen_url: String, volume: u8 },
     Volume { volume: u8 },
+    Mute { muted: bool },
 }
 
 impl Player {
@@ -27,9 +29,9 @@ impl Player {
         thread::spawn(move || {
             let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
-            let (mut current_listen_url, mut current_volume) = loop {
+            let (mut current_listen_url, mut current_volume, mut current_muted) = loop {
                 if let Ok(PlayerMessage::Play { listen_url, volume }) = receiver.recv() {
-                    break (listen_url, volume);
+                    break (listen_url, volume, false);
                 }
             };
 
@@ -38,25 +40,30 @@ impl Player {
                 let source = Mp3StreamDecoder::new(response).unwrap();
                 let sink = Sink::try_new(&stream_handle).unwrap();
                 sink.append(source);
-                sink.set_volume(Self::map_volume_to_rodio_volume(current_volume));
+                sink.set_volume(if current_muted { 0.0 } else { Self::map_volume_to_rodio_volume(current_volume) });
 
                 while let Ok(message) = receiver.recv() {
                     match message {
                         PlayerMessage::Play { listen_url, volume } => {
                             current_listen_url = listen_url;
                             current_volume = volume;
+                            current_muted = false;
                             break;
                         }
                         PlayerMessage::Volume { volume } => {
                             current_volume = volume;
                             sink.set_volume(Self::map_volume_to_rodio_volume(current_volume));
                         }
+                        PlayerMessage::Mute { muted } => {
+                            current_muted = muted;
+                            sink.set_volume(if current_muted { 0.0 } else { Self::map_volume_to_rodio_volume(current_volume) });
+                        }
                     }
                 }
             }
         });
 
-        Ok(Self { sender, volume: 9 })
+        Ok(Self { sender, volume: 9, muted: false })
     }
 
     pub fn play(&self, listen_url: &str) {
@@ -80,6 +87,28 @@ impl Player {
                 volume: self.volume,
             })
             .unwrap();
+    }
+
+    pub fn mute(&mut self) {
+        self.muted = true;
+        self.sender.send(PlayerMessage::Mute { muted: true }).unwrap();
+    }
+
+    pub fn unmute(&mut self) {
+        self.muted = false;
+        self.sender.send(PlayerMessage::Mute { muted: false }).unwrap();
+    }
+
+    pub fn toggle_mute(&mut self) {
+        if self.muted {
+            self.unmute();
+        } else {
+            self.mute();
+        }
+    }
+
+    pub const fn is_muted(&self) -> bool {
+        self.muted
     }
 
     /// Cap volume to a value between 0 and 9

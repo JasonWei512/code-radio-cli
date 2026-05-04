@@ -276,14 +276,26 @@ where
 /// When user press 0-9 on keyboard, adjust player volume.
 fn handle_keyboard_input() -> ! {
     loop {
-        if let Some(n) = terminal::read_char().ok().and_then(|c| c.to_digit(10)) {
-            if let Some(player) = PLAYER.lock().unwrap().as_mut() {
-                let volume = n as u8;
-                if player.volume() == volume {
-                    continue;
+        if let Ok(c) = terminal::read_char() {
+            if let Some(n) = c.to_digit(10) {
+                if let Some(player) = PLAYER.lock().unwrap().as_mut() {
+                    let volume = n as u8;
+                    if player.volume() == volume {
+                        continue;
+                    }
+                    player.set_volume(volume);
+                    update_progress_bar(|p| p.set_prefix(get_progress_bar_prefix(Some(volume))));
                 }
-                player.set_volume(volume);
-                update_progress_bar(|p| p.set_prefix(get_progress_bar_prefix(Some(volume))));
+            } else if c == ' ' {
+                if let Some(player) = PLAYER.lock().unwrap().as_mut() {
+                    player.toggle_mute();
+                    let prefix = if player.is_muted() {
+                        "Muted     ".to_string()
+                    } else {
+                        get_progress_bar_prefix(Some(player.volume()))
+                    };
+                    update_progress_bar(|p| p.set_prefix(prefix));
+                }
             }
         }
     }
